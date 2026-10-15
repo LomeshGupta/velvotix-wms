@@ -1,0 +1,52 @@
+{
+  "name": "velvotix-wms",
+  "version": "0.1.2",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "worker": "NODE_OPTIONS=--conditions=react-server tsx src/lib/queue/worker-main.ts",
+    "e2e": "node tests/e2e/smoke.mjs",
+    "check:bc": "node --env-file-if-exists=.env.local scripts/check-bc-connection.mjs"
+  },
+  "dependencies": {
+    "@emotion/cache": "^11.14.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
+    "@mui/icons-material": "^7.3.11",
+    "@mui/material": "^7.3.11",
+    "@mui/material-nextjs": "^7.3.10",
+    "@mui/x-data-grid": "^8.29.3",
+    "@node-rs/argon2": "^2.2.2",
+    "@tanstack/react-query": "^5.104.2",
+    "dayjs": "^1.11.23",
+    "ioredis": "^6.0.0",
+    "next": "16.2.6",
+    "p-queue": "^9.3.5",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "recharts": "^3.10.1",
+    "server-only": "^0.0.1",
+    "zod": "^4.6.7",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.2.6",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9",
+    "vitest": "^5.0.4"
+  }
+}

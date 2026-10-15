@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Next.js: Launch Dev Server",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev -- --port 8080",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Chrome: Debug App",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:8080",
+      "webRoot": "${workspaceFolder}"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Debug Next.js + Chrome",
+      "configurations": ["Next.js: Launch Dev Server", "Chrome: Debug App"],
+      "stopAll": true
+    }
+  ]
+}
