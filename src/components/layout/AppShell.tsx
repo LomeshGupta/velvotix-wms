@@ -55,7 +55,7 @@ export interface ShellUser {
 const NAV = [
   {
     href: "/dashboard",
-    label: "Control Tower",
+    label: "Home",
     icon: <SpaceDashboard />,
     perm: "dashboard:view",
   },
@@ -269,7 +269,7 @@ export function AppShell({
       <Drawer
         variant="permanent"
         sx={{
-          display: { xs: "none", md: "block" },
+          display: { xs: "none", lg: "block" },
           width: RAIL,
           flexShrink: 0,
           "& .MuiDrawer-paper": {
@@ -353,8 +353,8 @@ export function AppShell({
         open={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
         sx={{
-          display: { xs: "block", md: "none" },
-          "& .MuiDrawer-paper": { width: 300, maxWidth: "88vw" },
+          display: { xs: "block", lg: "none" },
+          "& .MuiDrawer-paper": { width: { xs: 300, sm: 360 }, maxWidth: "88vw" },
         }}
       >
         <Stack
@@ -420,7 +420,7 @@ export function AppShell({
           minWidth: 0,
           display: "flex",
           flexDirection: "column",
-          pb: { xs: "calc(64px + env(safe-area-inset-bottom, 0px))", md: 0 },
+          pb: { xs: "calc(80px + env(safe-area-inset-bottom, 0px))", lg: 0 },
         }}
       >
         {mockMode && (
@@ -438,7 +438,7 @@ export function AppShell({
           alignItems="center"
           spacing={1.5}
           sx={{
-            px: { xs: 1, md: 3 },
+            px: { xs: 1, sm: 2, lg: 3 },
             py: 1,
             borderBottom: 1,
             borderColor: "divider",
@@ -452,7 +452,7 @@ export function AppShell({
           <IconButton
             aria-label="Open all warehouse workspaces"
             onClick={() => setMobileMenuOpen(true)}
-            sx={{ display: { xs: "inline-flex", md: "none" } }}
+            sx={{ display: { xs: "inline-flex", lg: "none" }, width: 48, height: 48 }}
           >
             <Menu />
           </IconButton>
@@ -460,7 +460,7 @@ export function AppShell({
             variant="subtitle1"
             sx={{
               fontWeight: 600,
-              display: { xs: "block", md: "none" },
+              display: { xs: "block", lg: "none" },
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
@@ -495,9 +495,9 @@ export function AppShell({
         <Box
           sx={{
             flexGrow: 1,
-            px: { xs: 2, md: 4 },
-            py: { xs: 2, md: 3 },
-            maxWidth: 1280,
+            px: { xs: 1.5, sm: 2.5, lg: 4 },
+            py: { xs: 1.5, sm: 2.5, lg: 3 },
+            maxWidth: 1500,
             width: "100%",
             mx: "auto",
           }}
@@ -512,14 +512,14 @@ export function AppShell({
         showLabels
         value={active?.href ?? false}
         sx={{
-          display: { xs: "flex", md: "none" },
+          display: { xs: "flex", lg: "none" },
           position: "fixed",
           bottom: 0,
           left: 0,
           right: 0,
           borderTop: 1,
           borderColor: "divider",
-          height: "calc(64px + env(safe-area-inset-bottom, 0px))",
+          height: "calc(80px + env(safe-area-inset-bottom, 0px))",
           pb: "env(safe-area-inset-bottom, 0px)",
           zIndex: 20,
         }}
@@ -541,9 +541,9 @@ export function AppShell({
               component={Link}
               href={item.href}
               value={item.href}
-              label={item.label}
+              label={item.href === "/dashboard" ? "Home" : item.href === "/inbound/receiving" ? "Receive" : item.href === "/inventory/items" ? "Items" : item.href === "/outbound/picking" ? "Pick" : item.href === "/outbound/shipping" ? "Ship" : item.label}
               icon={item.icon}
-              sx={{ minWidth: 56, "&.Mui-selected": { color: "primary.main" } }}
+              sx={{ minWidth: 0, flex: "1 1 0", px: 0.25, "& .MuiBottomNavigationAction-label": { fontSize: "0.68rem", whiteSpace: "nowrap" }, "& .MuiSvgIcon-root": { fontSize: 25 }, "&.Mui-selected": { color: "primary.main" } }}
             />
           ))}
       </BottomNavigation>

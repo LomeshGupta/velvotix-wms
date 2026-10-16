@@ -1,5 +1,8 @@
 "use client";
 import Add from "@mui/icons-material/Add";
+import DescriptionOutlined from "@mui/icons-material/DescriptionOutlined";
+import QrCodeScanner from "@mui/icons-material/QrCodeScanner";
+import TaskAlt from "@mui/icons-material/TaskAlt";
 import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import Remove from "@mui/icons-material/Remove";
 import Alert from "@mui/material/Alert";
@@ -203,17 +206,33 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
       <PageHeader title={config.title} subtitle={locationCode ? <>{config.subtitle} · Warehouse <strong>{locationCode}</strong></> : "No warehouse assigned to your user"} />
       {!locationCode && <Alert severity="warning" sx={{ mb: 2 }}>Your Business Central WMS user has no warehouse assignment. Ask your BC administrator to assign a location.</Alert>}
       {!online && <Alert severity="warning" sx={{ mb: 2 }}>You are offline. Camera and hardware scanning remain available, but submission is blocked until connectivity returns.</Alert>}
-      {config.sourceDocumentRequired && <Alert severity="info" sx={{ mb: 2 }}>This workbench stages a {config.operationType.toLowerCase()} request against a Business Central source document. The source document number is validated by the live AL handler, not just by this screen.</Alert>}
+      {config.sourceDocumentRequired && <Alert severity="info" sx={{ mb: 2 }}>Choose the correct document before scanning. Required details are checked before this task is sent.</Alert>}
 
-      <Stack spacing={2.5} sx={{ maxWidth: 1000 }}>
+      <Paper sx={{ p: 1.25, mb: 2, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 1, maxWidth: 1350 }}>
+        {[
+          { number: "1", title: config.selectWarehouseShipment ? "Choose order" : "Enter details", icon: <DescriptionOutlined /> },
+          { number: "2", title: "Scan items", icon: <QrCodeScanner /> },
+          { number: "3", title: "Check and finish", icon: <TaskAlt /> },
+        ].map((step) => (
+          <Box key={step.number} sx={{ minWidth: 0, display: "flex", flexDirection: { xs: "column", sm: "row" }, alignItems: "center", justifyContent: { xs: "center", sm: "flex-start" }, gap: { xs: 0.5, sm: 1 }, p: { xs: 0.5, sm: 1 }, textAlign: { xs: "center", sm: "left" }, borderRadius: 1, bgcolor: "action.hover" }}>
+            <Box sx={{ display: "grid", placeItems: "center", width: { xs: 38, sm: 46 }, height: { xs: 38, sm: 46 }, flexShrink: 0, borderRadius: "50%", bgcolor: "primary.main", color: "primary.contrastText", "& .MuiSvgIcon-root": { fontSize: { xs: 22, sm: 27 } } }}>{step.icon}</Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontSize: { xs: "0.68rem", sm: "0.76rem" }, color: "text.secondary", lineHeight: 1.1 }}>STEP {step.number}</Typography>
+              <Typography sx={{ fontSize: { xs: "0.76rem", sm: "0.95rem" }, fontWeight: 800, lineHeight: 1.2, mt: 0.25 }}>{step.title}</Typography>
+            </Box>
+          </Box>
+        ))}
+      </Paper>
+
+      <Stack spacing={2.5} sx={{ maxWidth: 1350 }}>
         {!locked && (
           <Paper variant="outlined" sx={{ p: { xs: 1.5, sm: 2 } }}>
-            <Typography variant="h2" component="h2" sx={{ mb: 2 }}>Work order details</Typography>
+            <Typography variant="h2" component="h2" sx={{ mb: 2 }}>{config.selectWarehouseShipment ? "1. Choose the order" : "1. Enter details"}</Typography>
             <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: config.allowDestinationWarehouse ? "repeat(3,minmax(0,1fr))" : "repeat(2,minmax(0,1fr))" } }}>
               {config.selectWarehouseShipment ? <FormControl fullWidth required={config.sourceDocumentRequired}>
                 <InputLabel id="source-warehouse-shipment-label">{config.sourceDocumentLabel}</InputLabel>
                 <Select labelId="source-warehouse-shipment-label" label={config.sourceDocumentLabel} value={sourceDocumentNo} onChange={(e) => { setSourceDocumentNo(String(e.target.value)); setLoadedShipmentKey(""); setLines([]); setActiveLineIndex(-1); }}>
-                  <MenuItem value="">Select a released shipment</MenuItem>
+                  <MenuItem value="">Choose an order</MenuItem>
                   {(shipmentQuery.data?.shipments ?? []).map((shipment) => <MenuItem key={shipment.id} value={shipment.number}>{shipment.number} · {shipment.documentStatus?.trim() || "Not picked"}{shipment.externalDocumentNo ? ` · ${shipment.externalDocumentNo}` : ""}</MenuItem>)}
                 </Select>
                 {shipmentQuery.isLoading && <Typography variant="caption" color="text.secondary">Loading released Business Central shipments…</Typography>}
@@ -236,7 +255,7 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
               </FormControl> : <TextField label={config.reasonLabel ?? "Reason code"} value={reasonCode} onChange={(e) => setReasonCode(e.target.value.toUpperCase())} required={config.requireReason} slotProps={{ htmlInput: { maxLength: 20, style: { fontFamily: MONO } } }} />)}
             </Box>
             {config.selectWarehouseShipment && sourceDocumentNo && <Box sx={{ mt: 2, borderTop: 1, borderColor: "divider", pt: 2 }}>
-              <Typography variant="h3" component="h3" sx={{ mb: 1 }}>Business Central shipment lines</Typography>
+              <Typography variant="h3" component="h3" sx={{ mb: 1 }}>Items on this order</Typography>
               {shipmentLinesQuery.isLoading && <Typography variant="body2" color="text.secondary">Loading base warehouse shipment lines…</Typography>}
               {shipmentLinesQuery.isError && <Alert severity="error">Unable to read lines for {sourceDocumentNo}. Verify the WMS warehouse shipment line API page is published and the integration permission set is assigned.</Alert>}
               {!shipmentLinesQuery.isLoading && !shipmentLinesQuery.isError && (shipmentLinesQuery.data?.lines.length ?? 0) === 0 && <Typography variant="body2" color="text.secondary">No lines found on this warehouse shipment.</Typography>}
@@ -250,27 +269,34 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
           </Paper>
         )}
 
+        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: locked ? "1fr" : "minmax(300px,0.85fr) minmax(0,1.15fr)" }, alignItems: "start" }}>
         {!locked && <Paper variant="outlined" sx={{ p: { xs: 1.5, sm: 2 } }}>
-          <Typography variant="h2" component="h2" sx={{ mb: 1.5 }}>Scan work</Typography>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+            <QrCodeScanner color="primary" sx={{ fontSize: 32 }} />
+            <Box>
+              <Typography variant="h2" component="h2">2. Scan items</Typography>
+              <Typography variant="body2" color="text.secondary">Scan each item barcode. The count updates as you scan.</Typography>
+            </Box>
+          </Stack>
           <Stack spacing={1.5}>
-            <FormControl size="small" sx={{ maxWidth: 320 }}>
-              <InputLabel id="scan-target-label">Camera / scanner target</InputLabel>
-              <Select labelId="scan-target-label" label="Camera / scanner target" value={scanTarget} onChange={(e) => setScanTarget(e.target.value as ScanTarget)}>
-                <MenuItem value="item">Item / GTIN barcode</MenuItem>
-                {config.showBins && <MenuItem value="fromBin">Source bin barcode</MenuItem>}
-                {config.showBins && <MenuItem value="toBin">Destination bin barcode</MenuItem>}
+            <FormControl size="small" fullWidth>
+              <InputLabel id="scan-target-label">What are you scanning?</InputLabel>
+              <Select labelId="scan-target-label" label="What are you scanning?" value={scanTarget} onChange={(e) => setScanTarget(e.target.value as ScanTarget)}>
+                <MenuItem value="item">Item barcode</MenuItem>
+                {config.showBins && <MenuItem value="fromBin">From bin</MenuItem>}
+                {config.showBins && <MenuItem value="toBin">To bin</MenuItem>}
                 <MenuItem value="lot">Lot number barcode</MenuItem>
                 <MenuItem value="serial">Serial number barcode</MenuItem>
               </Select>
             </FormControl>
-            <ScanInput onScan={onScan} busy={lookup.isPending || submit.isPending} disabled={!locationCode || locked || Boolean(config.selectWarehouseShipment && (!sourceDocumentNo || shipmentLinesQuery.isLoading || shipmentLinesQuery.isError || !shipmentLinesQuery.data))} label={scanTarget === "item" ? "Scan item / GTIN" : `Scan ${scanTarget === "fromBin" ? "source bin" : scanTarget === "toBin" ? "destination bin" : scanTarget === "lot" ? "lot number" : "serial number"}`} helperText={scanError ?? "Use the camera, a Bluetooth/USB scanner, or type a value and press Enter."} error={Boolean(scanError)} />
+            <ScanInput onScan={onScan} busy={lookup.isPending || submit.isPending} disabled={!locationCode || locked || Boolean(config.selectWarehouseShipment && (!sourceDocumentNo || shipmentLinesQuery.isLoading || shipmentLinesQuery.isError || !shipmentLinesQuery.data))} label={scanTarget === "item" ? "Scan item barcode" : `Scan ${scanTarget === "fromBin" ? "from bin" : scanTarget === "toBin" ? "to bin" : scanTarget === "lot" ? "lot number" : "serial number"}` } helperText={scanError ?? "Tap Scan with camera, use a barcode scanner, or type the code."} error={Boolean(scanError)} />
             <Box role="status" aria-live="polite" sx={{ position: "absolute", left: -9999 }}>{announce}</Box>
           </Stack>
         </Paper>}
 
         <Box>
-          <Typography variant="h2" component="h2" sx={{ mb: 1.5 }}>{config.lineHeading}{lines.length ? ` (${lines.length})` : ""}</Typography>
-          {lines.length === 0 ? <Alert severity="info">Scan the first item to start this {config.operationType.toLowerCase()} task. Repeated item scans increment quantity unless a serial number is already present.</Alert> : <Stack spacing={1.5}>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}><TaskAlt color="primary" sx={{ fontSize: 32 }} /><Box><Typography variant="h2" component="h2">3. Check items</Typography><Typography variant="body2" color="text.secondary">{lines.length ? `${lines.length} lines · ${totalQuantity} units` : "Scanned items will appear here."}</Typography></Box></Stack>
+          {lines.length === 0 ? <Alert severity="info" icon={<QrCodeScanner />}>No items yet. Scan the first item using the camera or a barcode scanner.</Alert> : <Stack spacing={1.5}>
             {lines.map((line, i) => <Paper key={`${line.itemNo}-${i}`} variant="outlined" sx={{ p: 1.5, borderColor: activeLineIndex === i ? "secondary.main" : "divider", borderLeftWidth: activeLineIndex === i ? 4 : 1 }}>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }}>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -284,7 +310,7 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
                   <IconButton size="small" aria-label={`Remove ${line.itemNo}`} disabled={locked || line.expectedQuantity !== undefined} onClick={() => { setLines((old) => old.filter((_, k) => k !== i)); setActiveLineIndex((active) => active === i ? -1 : active > i ? active - 1 : active); }}><DeleteOutline /></IconButton>
                 </Stack>
               </Stack>
-              <Box sx={{ display: "grid", gap: 1, mt: 1.5, gridTemplateColumns: { xs: "1fr 1fr", md: config.showBins ? "repeat(4,minmax(0,1fr))" : "repeat(2,minmax(0,1fr))" } }}>
+              <Box sx={{ display: "grid", gap: 1, mt: 1.5, gridTemplateColumns: { xs: "repeat(2,minmax(0,1fr))", md: "repeat(2,minmax(0,1fr))", xl: config.showBins ? "repeat(4,minmax(0,1fr))" : "repeat(2,minmax(0,1fr))" } }}>
                 {config.showBins && <TextField size="small" label="From bin" value={line.fromBinCode} disabled={locked} onFocus={() => { setActiveLineIndex(i); setScanTarget("fromBin"); }} onChange={(e) => updateLine(i, { fromBinCode: e.target.value.toUpperCase() })} error={Boolean(config.requireFromBin && !line.fromBinCode.trim())} slotProps={{ htmlInput: { maxLength: 20, style: { fontFamily: MONO } } }} />}
                 {config.showBins && <TextField size="small" label="To bin" value={line.toBinCode} disabled={locked} onFocus={() => { setActiveLineIndex(i); setScanTarget("toBin"); }} onChange={(e) => updateLine(i, { toBinCode: e.target.value.toUpperCase() })} error={Boolean(config.requireToBin && !line.toBinCode.trim())} slotProps={{ htmlInput: { maxLength: 20, style: { fontFamily: MONO } } }} />}
                 <TextField size="small" label="Lot no." value={line.lotNo} disabled={locked} onFocus={() => { setActiveLineIndex(i); setScanTarget("lot"); }} onChange={(e) => updateLine(i, { lotNo: e.target.value.toUpperCase() })} slotProps={{ htmlInput: { maxLength: 50, style: { fontFamily: MONO } } }} />
@@ -293,18 +319,19 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
             </Paper>)}
           </Stack>}
         </Box>
+        </Box>
 
         {submit.error && !locked && <ErrorNotice error={submit.error} />}
         {locked && <Paper variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="h2" component="h2" sx={{ mb: 1 }}>Business Central processing status</Typography>
+          <Typography variant="h2" component="h2" sx={{ mb: 1 }}>Task status</Typography>
           {txQuery.error && !tx ? <ErrorNotice error={txQuery.error} onRetry={() => txQuery.refetch()} /> : <TransactionTimeline tx={tx ?? { status: "Submitted" }} noun={config.operationType} />}
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Accepted means saved to the Business Central WMS staging queue. Stock, documents and ledger entries change only when an installed live AL handler processes the transaction successfully.</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Your task has been sent. Wait for the status below before starting the next task.</Typography>
           {tx && isTerminal(tx.status) && <Button sx={{ mt: 2 }} variant="contained" onClick={startNew}>Start next task</Button>}
         </Paper>}
 
-        {!locked && <Box sx={{ position: "sticky", bottom: { xs: "calc(72px + env(safe-area-inset-bottom, 0px))", md: 16 }, zIndex: 5 }}>
+        {!locked && <Box sx={{ position: "sticky", bottom: { xs: "calc(88px + env(safe-area-inset-bottom, 0px))", lg: 16 }, zIndex: 5 }}>
           <Paper sx={{ p: 1.5, display: "flex", alignItems: "center", gap: 1.5, boxShadow: 3 }}>
-            <Box sx={{ flexGrow: 1, minWidth: 0 }}><Typography variant="body2" fontWeight={600}>{lines.length ? `${lines.length} lines · ${totalQuantity} units` : "No lines yet"}</Typography><Typography variant="caption" color="text.secondary">{lines.length && invalidLines ? (config.selectWarehouseShipment ? "Scan the required shipment quantity for each line" : "Complete required bins and valid quantities") : config.requireReason && !reasonCode.trim() ? "Choose a reason before submitting" : "Saved to BC staging after submission"}</Typography></Box>
+            <Box sx={{ flexGrow: 1, minWidth: 0 }}><Typography variant="body2" fontWeight={800}>{lines.length ? `${lines.length} lines · ${totalQuantity} units` : "No items yet"}</Typography><Typography variant="caption" color="text.secondary">{lines.length && invalidLines ? (config.selectWarehouseShipment ? "Scan the required shipment quantity for each line" : "Complete required bins and valid quantities") : config.requireReason && !reasonCode.trim() ? "Choose a reason before submitting" : "Saved to BC staging after submission"}</Typography></Box>
             {lines.length > 0 && <Button onClick={startNew}>Clear</Button>}
             <Button variant="contained" size="large" disabled={!canSubmit || submit.isPending} onClick={() => setConfirmOpen(true)} sx={{ whiteSpace: "nowrap", flexShrink: 0 }}>{submit.isPending ? "Submitting…" : submit.error ? "Retry same task" : config.submitLabel}</Button>
           </Paper>
@@ -312,9 +339,9 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
       </Stack>
 
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>Submit {config.operationType.toLowerCase()} task?</DialogTitle>
+        <DialogTitle>Send this task?</DialogTitle>
         <DialogContent><DialogContentText>{lines.length} {lines.length === 1 ? "line" : "lines"}, {totalQuantity} units at {locationCode}{destinationLocationCode ? ` to ${destinationLocationCode}` : ""}{sourceDocumentNo ? ` · ${config.sourceDocumentLabel}: ${sourceDocumentNo}` : ""}. This request will be staged in Business Central and must be validated/processed by the installed AL operation handler.</DialogContentText></DialogContent>
-        <DialogActions><Button onClick={() => setConfirmOpen(false)}>Keep editing</Button><Button variant="contained" onClick={() => void doSubmit()} autoFocus>Submit task</Button></DialogActions>
+        <DialogActions><Button onClick={() => setConfirmOpen(false)}>Go back</Button><Button variant="contained" onClick={() => void doSubmit()} autoFocus>Yes, send task</Button></DialogActions>
       </Dialog>
     </>
   );
