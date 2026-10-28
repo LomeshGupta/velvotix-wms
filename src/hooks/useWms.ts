@@ -15,7 +15,10 @@ import {
   submitOperation,
   getMonitor,
 } from "@/services/api";
-import type { ReceiptPayload, WmsOperationPayload } from "@/services/api/schemas";
+import type {
+  ReceiptPayload,
+  WmsOperationPayload,
+} from "@/services/api/schemas";
 
 export type {
   TransactionRow,
@@ -31,17 +34,38 @@ export type {
 } from "@/services/api/schemas";
 
 const jitter = (ms: number) => Math.round(ms * (0.85 + Math.random() * 0.3));
+const IN_FLIGHT = new Set(["Submitted", "Queued", "Processing"]);
+const TERMINAL = new Set([
+  "Completed",
+  "Failed",
+  "Cancelled",
+  "Requires Reconciliation",
+  "Partially Completed",
+]);
+export const isTerminal = (status: string | undefined) =>
+  Boolean(status && TERMINAL.has(status));
 
 /** Retry only transient overload/service errors. Authentication and validation errors are not retried. */
-const retryPolicy = (count: number, error: unknown) => count < 2 && error instanceof ApiError && error.retryable;
+const retryPolicy = (count: number, error: unknown) =>
+  count < 2 && error instanceof ApiError && error.retryable;
 
 export const useDashboard = () =>
   useQuery({
     queryKey: ["dashboard"],
     queryFn: ({ signal }) => getDashboard(signal),
-    staleTime: 20_000,
-    refetchInterval: () => jitter(45_000),
+    staleTime: 5_000,
+    // Refresh more frequently while transactions are waiting/processing; back off when idle.
+    refetchInterval: (query) => {
+      const counts = query.state.data?.counts ?? {};
+      const active =
+        (counts.Submitted ?? 0) +
+          (counts.Queued ?? 0) +
+          (counts.Processing ?? 0) >
+        0;
+      return jitter(active ? 5_000 : 15_000);
+    },
     refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
     retry: retryPolicy,
   });
 
@@ -49,12 +73,17 @@ export const useTransactions = (status?: string) =>
   useQuery({
     queryKey: ["transactions", status ?? "all"],
     queryFn: ({ signal }) => getTransactions(status, signal),
-    staleTime: 15_000,
+    staleTime: 2_000,
+    // Keep the list current while there is pending work, and still discover new rows while idle.
+    refetchInterval: (query) => {
+      const rows = query.state.data?.transactions ?? [];
+      const active = rows.some((row) => IN_FLIGHT.has(row.status));
+      return jitter(active ? 2_500 : 5_000);
+    },
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
     retry: retryPolicy,
   });
-
-const TERMINAL = new Set(["Completed", "Failed", "Cancelled", "Requires Reconciliation", "Partially Completed"]);
-export const isTerminal = (status: string | undefined) => Boolean(status && TERMINAL.has(status));
 
 export const useTransaction = (id: string | null) =>
   useQuery({
@@ -66,6 +95,8 @@ export const useTransaction = (id: string | null) =>
       const updates = query.state.dataUpdateCount;
       return jitter(Math.min(8000, 1500 + updates * 700));
     },
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
     retry: retryPolicy,
   });
 
@@ -78,11 +109,16 @@ export const useWarehouseShipments = (locationCode: string) =>
     retry: retryPolicy,
   });
 
-export const useWarehouseShipmentLines = (locationCode: string, number: string, enabled: boolean) =>
+export const useWarehouseShipmentLines = (
+  locationCode: string,
+  number: string,
+  enabled: boolean,
+) =>
   useQuery({
     queryKey: ["warehouse-shipment-lines", locationCode, number],
     enabled: Boolean(locationCode && number && enabled),
-    queryFn: ({ signal }) => getWarehouseShipmentLines(locationCode, number, signal),
+    queryFn: ({ signal }) =>
+      getWarehouseShipmentLines(locationCode, number, signal),
     staleTime: 15_000,
     retry: retryPolicy,
   });
@@ -99,10 +135,14 @@ export const useItemSearch = (search: string) =>
   });
 
 export const useSubmitReceipt = () =>
-  useMutation({ mutationFn: (payload: ReceiptPayload) => submitReceipt(payload) });
+  useMutation({
+    mutationFn: (payload: ReceiptPayload) => submitReceipt(payload),
+  });
 
 export const useSubmitOperation = () =>
-  useMutation({ mutationFn: (payload: WmsOperationPayload) => submitOperation(payload) });
+  useMutation({
+    mutationFn: (payload: WmsOperationPayload) => submitOperation(payload),
+  });
 
 export const useMonitor = () =>
   useQuery({
