@@ -56,6 +56,14 @@ export interface WarehouseShipmentLineHit {
   status?: string;
 }
 
+export interface BinHit {
+  id: string;
+  locationCode: string;
+  code: string;
+  description?: string;
+  zoneCode?: string;
+}
+
 export interface ItemHit {
   number: string;
   displayName: string;

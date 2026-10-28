@@ -183,6 +183,22 @@ export const OPERATIONS = {
     },
   },
 
+  "bins.list": {
+    api: "custom", entity: "bins", method: "GET", lane: "interactive",
+    permission: perm("bins", "view"), cache: "reference", tags: ["bins"],
+    scope: warehouseScope("locationCode"),
+    query: {
+      maxTop: 50, defaultTop: 20, defaultSelect: ["id", "locationCode", "code", "description", "zoneCode"],
+      fields: {
+        id: f({ type: "guid", filterable: true }),
+        locationCode: f({ type: "string", filterable: true, ops: ["eq", "in"] }),
+        code: f({ type: "string", filterable: true, sortable: true, ops: ["eq", "startswith"] }),
+        description: f({ type: "string" }),
+        zoneCode: f({ type: "string", filterable: true, ops: ["eq"] }),
+      },
+    },
+  },
+
   /* ------------------------------------------------------------- transactions */
   "transactions.list": {
     api: "custom", entity: "transactions", method: "GET", lane: "interactive",

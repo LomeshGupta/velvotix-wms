@@ -71,6 +71,8 @@ function makeCorrelationId(): string {
   }
 }
 
+const DEBUG_LOG = process.env.NODE_ENV !== "production";
+
 function logRequest(
   correlationId: string,
   method: string,
@@ -78,6 +80,7 @@ function logRequest(
   headers: Record<string, string>,
   body: unknown,
 ): void {
+  if (!DEBUG_LOG) return;
   console.groupCollapsed(
     `%c[WMS API REQUEST] ${method} ${url}`,
     "color:#1976d2;font-weight:bold",
@@ -100,6 +103,7 @@ function logResponse(
   body: unknown,
   durationMs: number,
 ): void {
+  if (!DEBUG_LOG) return;
   const failed = status === 0 || status >= 400;
 
   console.groupCollapsed(

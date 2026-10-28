@@ -8,6 +8,7 @@ import {
   getTransaction,
   getWarehouseShipments,
   getWarehouseShipmentLines,
+  getBins,
   lookupItem,
   searchItems,
   submitReceipt,
@@ -21,6 +22,7 @@ export type {
   DashboardData,
   WarehouseShipmentHit,
   WarehouseShipmentLineHit,
+  BinHit,
   ItemHit,
   ReceiptPayload,
   WmsOperationType,
@@ -108,5 +110,15 @@ export const useMonitor = () =>
     queryFn: ({ signal }) => getMonitor(signal),
     refetchInterval: () => jitter(15_000),
     refetchIntervalInBackground: false,
+    retry: retryPolicy,
+  });
+
+/** Bin suggestions for the selected warehouse (cached; the server re-validates on submit). */
+export const useBins = (locationCode: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ["bins", locationCode],
+    enabled: enabled && Boolean(locationCode),
+    queryFn: ({ signal }) => getBins(locationCode, "", signal),
+    staleTime: 5 * 60_000,
     retry: retryPolicy,
   });

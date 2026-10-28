@@ -3,6 +3,7 @@ export * from "./dashboardService";
 export * from "./transactionService";
 export * from "./itemService";
 export * from "./shipmentService";
+export * from "./binService";
 export * from "./receivingService";
 export * from "./operationService";
 export * from "./adminService";

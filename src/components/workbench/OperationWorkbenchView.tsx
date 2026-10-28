@@ -29,7 +29,7 @@ import { useOnline } from "@/components/layout/NetworkStatus";
 import { ScanInput } from "@/components/scanning/ScanInput";
 import { TransactionTimeline } from "@/components/transactions/TransactionTimeline";
 import { friendlyMessage } from "@/lib/api-client";
-import { isTerminal, useItemLookup, useSubmitOperation, useTransaction, useWarehouseShipmentLines, useWarehouseShipments, type WmsOperationPayload, type WmsOperationType } from "@/hooks/useWms";
+import { isTerminal, useBins, useItemLookup, useSubmitOperation, useTransaction, useWarehouseShipmentLines, useWarehouseShipments, type WmsOperationPayload, type WmsOperationType } from "@/hooks/useWms";
 import { useSessionStore } from "@/store/uiStore";
 import { MONO } from "@/theme/theme";
 
@@ -96,6 +96,7 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
   const tx = txQuery.data?.transaction;
   const locked = Boolean(transactionId);
   const locationCode = selectedLocation ?? "";
+  const binsQuery = useBins(locationCode, Boolean(config.showBins));
   const shipmentQuery = useWarehouseShipments(config.selectWarehouseShipment ? locationCode : "");
   const shipmentLinesQuery = useWarehouseShipmentLines(locationCode, sourceDocumentNo, Boolean(config.selectWarehouseShipment));
   const destinationChoices = useMemo(() => warehouseCodes.filter((code) => code.toUpperCase() !== locationCode.toUpperCase()), [warehouseCodes, locationCode]);
@@ -103,18 +104,25 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
   useEffect(() => {
     const key = `${locationCode}:${sourceDocumentNo}`;
     if (!config.selectWarehouseShipment || !sourceDocumentNo || shipmentLinesQuery.isLoading || shipmentLinesQuery.isError || !shipmentLinesQuery.data || loadedShipmentKey === key) return;
+    // Pick: what is still to be picked (outstanding minus already registered picks).
+    // Ship: what BC has set to ship. Qty. to Ship can be 0 before a pick is registered, so it
+    // must not drive the pick screen.
+    const remaining = (line: { qtyToShip: number; qtyOutstanding: number; qtyPicked: number }) =>
+      config.operationType === "Pick"
+        ? Math.max(Number(line.qtyOutstanding) - Number(line.qtyPicked), 0)
+        : Number(line.qtyToShip);
     const planned = shipmentLinesQuery.data.lines
-      .filter((line) => Number(line.qtyToShip) > 0)
+      .filter((line) => remaining(line) > 0)
       .map((line) => ({
         ...emptyLine(), itemNo: line.itemNo, description: line.description,
         unitOfMeasureCode: line.unitOfMeasureCode, quantity: 0,
-        expectedQuantity: Number(line.qtyToShip), sourceLineNo: Number(line.lineNo),
+        expectedQuantity: remaining(line), sourceLineNo: Number(line.lineNo),
         fromBinCode: line.binCode ?? "",
       }));
     setLines(planned);
     setActiveLineIndex(planned.length ? 0 : -1);
     setLoadedShipmentKey(key);
-  }, [config.selectWarehouseShipment, locationCode, sourceDocumentNo, shipmentLinesQuery.data, shipmentLinesQuery.isError, shipmentLinesQuery.isLoading, loadedShipmentKey]);
+  }, [config.selectWarehouseShipment, config.operationType, locationCode, sourceDocumentNo, shipmentLinesQuery.data, shipmentLinesQuery.isError, shipmentLinesQuery.isLoading, loadedShipmentKey]);
 
   const updateLine = (index: number, patch: Partial<WorkLine>) => setLines((old) => old.map((line, i) => i === index ? { ...line, ...patch } : line));
 
@@ -161,7 +169,11 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
   };
 
   const totalQuantity = lines.reduce((sum, line) => sum + (Number.isFinite(line.quantity) ? line.quantity : 0), 0);
-  const invalidLines = lines.some((line) => !line.itemNo || !Number.isFinite(line.quantity) || line.quantity <= 0 || (line.expectedQuantity !== undefined && line.quantity !== line.expectedQuantity) || (config.requireFromBin && !line.fromBinCode.trim()) || (config.requireToBin && !line.toBinCode.trim()));
+  // Lines taken from a warehouse shipment may be left at 0 (skipped) or partly handled, but never
+  // exceed what BC says is outstanding. Free-entry workbenches still need a positive quantity.
+  const fromDocument = Boolean(config.selectWarehouseShipment);
+  const activeLines = fromDocument ? lines.filter((line) => line.quantity > 0) : lines;
+  const invalidLines = (fromDocument && activeLines.length === 0) || lines.some((line) => !line.itemNo || !Number.isFinite(line.quantity) || line.quantity < 0 || (!fromDocument && line.quantity <= 0) || (line.expectedQuantity !== undefined && line.quantity > line.expectedQuantity) || (config.requireFromBin && line.quantity > 0 && !line.fromBinCode.trim()) || (config.requireToBin && line.quantity > 0 && !line.toBinCode.trim()));
   const missingDocument = Boolean(config.sourceDocumentRequired && !sourceDocumentNo.trim());
   const missingReason = Boolean(config.requireReason && !reasonCode.trim());
   const canSubmit = Boolean(locationCode) && lines.length > 0 && !invalidLines && !missingDocument && !missingReason && !locked && online && !lookup.isPending;
@@ -176,7 +188,7 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
       sourceDocumentType: config.sourceDocumentType,
       sourceDocumentNo: sourceDocumentNo.trim() || undefined,
       reasonCode: reasonCode.trim() || undefined,
-      lines: lines.map((line) => ({
+      lines: activeLines.map((line) => ({
         itemNo: line.itemNo,
         quantity: line.quantity,
         unitOfMeasureCode: line.unitOfMeasureCode || undefined,
@@ -261,7 +273,7 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
               {!shipmentLinesQuery.isLoading && !shipmentLinesQuery.isError && (shipmentLinesQuery.data?.lines.length ?? 0) === 0 && <Typography variant="body2" color="text.secondary">No lines found on this warehouse shipment.</Typography>}
               {(shipmentLinesQuery.data?.lines ?? []).map((line) => <Box key={line.id} sx={{ py: 1, borderBottom: 1, borderColor: "divider", display: "grid", gridTemplateColumns: { xs: "1fr auto", sm: "minmax(0,1fr) auto auto auto" }, gap: 1, alignItems: "center" }}>
                 <Box sx={{ minWidth: 0 }}><Typography fontWeight={600}>{line.itemNo} · {line.description}</Typography><Typography variant="caption" color="text.secondary">Line {line.lineNo}{line.binCode ? ` · Bin ${line.binCode}` : ""}{line.sourceNo ? ` · Source ${line.sourceNo}` : ""}</Typography></Box>
-                <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>To ship: {line.qtyToShip}</Typography>
+                <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>{config.operationType === "Pick" ? `To pick: ${Math.max(Number(line.qtyOutstanding) - Number(line.qtyPicked), 0)}` : `To ship: ${line.qtyToShip}`}</Typography>
                 <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>Picked: {line.qtyPicked}</Typography>
                 <Typography variant="caption" color="text.secondary">{line.status?.trim() || "Open"}</Typography>
               </Box>)}
@@ -289,6 +301,7 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
                 <MenuItem value="serial">Serial number barcode</MenuItem>
               </Select>
             </FormControl>
+            {config.showBins && <datalist id="wms-bin-options">{(binsQuery.data?.bins ?? []).map((bin) => <option key={bin.id} value={bin.code}>{bin.description ?? ""}</option>)}</datalist>}
             <ScanInput onScan={onScan} busy={lookup.isPending || submit.isPending} disabled={!locationCode || locked || Boolean(config.selectWarehouseShipment && (!sourceDocumentNo || shipmentLinesQuery.isLoading || shipmentLinesQuery.isError || !shipmentLinesQuery.data))} label={scanTarget === "item" ? "Scan item barcode" : `Scan ${scanTarget === "fromBin" ? "from bin" : scanTarget === "toBin" ? "to bin" : scanTarget === "lot" ? "lot number" : "serial number"}` } helperText={scanError ?? "Tap Scan with camera, use a barcode scanner, or type the code."} error={Boolean(scanError)} />
             <Box role="status" aria-live="polite" sx={{ position: "absolute", left: -9999 }}>{announce}</Box>
           </Stack>
@@ -311,8 +324,8 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
                 </Stack>
               </Stack>
               <Box sx={{ display: "grid", gap: 1, mt: 1.5, gridTemplateColumns: { xs: "repeat(2,minmax(0,1fr))", md: "repeat(2,minmax(0,1fr))", xl: config.showBins ? "repeat(4,minmax(0,1fr))" : "repeat(2,minmax(0,1fr))" } }}>
-                {config.showBins && <TextField size="small" label="From bin" value={line.fromBinCode} disabled={locked} onFocus={() => { setActiveLineIndex(i); setScanTarget("fromBin"); }} onChange={(e) => updateLine(i, { fromBinCode: e.target.value.toUpperCase() })} error={Boolean(config.requireFromBin && !line.fromBinCode.trim())} slotProps={{ htmlInput: { maxLength: 20, style: { fontFamily: MONO } } }} />}
-                {config.showBins && <TextField size="small" label="To bin" value={line.toBinCode} disabled={locked} onFocus={() => { setActiveLineIndex(i); setScanTarget("toBin"); }} onChange={(e) => updateLine(i, { toBinCode: e.target.value.toUpperCase() })} error={Boolean(config.requireToBin && !line.toBinCode.trim())} slotProps={{ htmlInput: { maxLength: 20, style: { fontFamily: MONO } } }} />}
+                {config.showBins && <TextField size="small" label="From bin" value={line.fromBinCode} disabled={locked} onFocus={() => { setActiveLineIndex(i); setScanTarget("fromBin"); }} onChange={(e) => updateLine(i, { fromBinCode: e.target.value.toUpperCase() })} error={Boolean(config.requireFromBin && !line.fromBinCode.trim())} slotProps={{ htmlInput: { maxLength: 20, list: "wms-bin-options", style: { fontFamily: MONO } } }} />}
+                {config.showBins && <TextField size="small" label="To bin" value={line.toBinCode} disabled={locked} onFocus={() => { setActiveLineIndex(i); setScanTarget("toBin"); }} onChange={(e) => updateLine(i, { toBinCode: e.target.value.toUpperCase() })} error={Boolean(config.requireToBin && !line.toBinCode.trim())} slotProps={{ htmlInput: { maxLength: 20, list: "wms-bin-options", style: { fontFamily: MONO } } }} />}
                 <TextField size="small" label="Lot no." value={line.lotNo} disabled={locked} onFocus={() => { setActiveLineIndex(i); setScanTarget("lot"); }} onChange={(e) => updateLine(i, { lotNo: e.target.value.toUpperCase() })} slotProps={{ htmlInput: { maxLength: 50, style: { fontFamily: MONO } } }} />
                 <TextField size="small" label="Serial no." value={line.serialNo} disabled={locked} onFocus={() => { setActiveLineIndex(i); setScanTarget("serial"); }} onChange={(e) => updateLine(i, { serialNo: e.target.value.toUpperCase() })} slotProps={{ htmlInput: { maxLength: 50, style: { fontFamily: MONO } } }} />
               </Box>

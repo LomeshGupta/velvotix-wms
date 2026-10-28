@@ -28,12 +28,6 @@ export async function requireWmsPagePermission(permission: string) {
   }
 
   const permissions = session.principal.permissions;
-  console.log("[WMS PAGE ACCESS]", {
-    userId: session.principal.userId,
-    requiredPermission: permission,
-    effectivePermissions: session.principal.permissions,
-    allowed: session.principal.permissions.includes(permission),
-  });
 
   // SUPER grants full WMS page access.
   if (permissions.includes("SUPER")) {
