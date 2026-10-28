@@ -727,26 +727,6 @@ export class BcGateway {
             durationMs,
           });
         }
-        // BUSINESS CENTRAL API RESPONSE DEBUG
-        const debugResponseText = await res
-          .clone()
-          .text()
-          .catch(() => "");
-        let debugResponseBody: unknown = debugResponseText;
-
-        try {
-          debugResponseBody = JSON.parse(debugResponseText);
-        } catch {
-          // Keep plain-text response as text.
-        }
-
-        console.group("BUSINESS CENTRAL API RESPONSE");
-        console.log("API URL:", url);
-        console.log("HTTP STATUS:", res.status, res.statusText);
-        console.log("RESPONSE BODY:", debugResponseBody);
-        console.log("CORRELATION ID:", correlationId);
-        console.groupEnd();
-
         if (res.ok) {
           scheduler.reportOutcome(true);
           metrics.request(operationKey, durationMs, queueWaitMs, "ok");
@@ -769,6 +749,7 @@ export class BcGateway {
         );
         const duplicate =
           isWrite && res.status === 400 && errorBody.includes(DUPLICATE_MARKER);
+        const bcMessage = extractBcMessage(errorBody, res.status);
 
         const { code, retryable } = classifyStatus(res.status);
         const retryAfterMs = parseRetryAfter(res.headers.get("retry-after"));
@@ -782,6 +763,7 @@ export class BcGateway {
           res.status === 429 ? "throttled" : "error",
         );
         logger.warn("bc.request.error", {
+          bcMessage,
           correlationId,
           operation: operationKey,
           userId: ctx.principal.userId,
@@ -801,7 +783,7 @@ export class BcGateway {
         const ambiguous = isWrite && [408, 502, 503, 504].includes(res.status);
         throw new GatewayError(
           ambiguous ? "OUTCOME_UNKNOWN" : code,
-          "Business Central rejected the request",
+          bcMessage ?? "Business Central rejected the request",
           {
             status: res.status,
             retryable: isWrite ? false : retryable,
@@ -812,6 +794,23 @@ export class BcGateway {
         );
       },
     );
+  }
+}
+
+/**
+ * Business Central returns AL Error() text as {"error":{"code","message"}}. Those texts are written
+ * for users (for example "WMS user X does not have permission picking:submit."), so a short,
+ * single-line copy is passed on for client errors. Server faults and anything long stay generic.
+ */
+export function extractBcMessage(body: string, status: number): string | undefined {
+  if (status >= 500 || status === 401 || status === 403) return undefined;
+  try {
+    const m = (JSON.parse(body) as { error?: { message?: unknown } }).error?.message;
+    if (typeof m !== "string") return undefined;
+    const clean = m.replace(/\s+/g, " ").replace(/CorrelationId:.*$/i, "").trim();
+    return clean && clean.length <= 300 ? `Business Central: ${clean}` : undefined;
+  } catch {
+    return undefined;
   }
 }
 

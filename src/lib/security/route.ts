@@ -2,8 +2,8 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { ZodError } from "zod";
-import { getConfig } from "@/lib/business-central/config";
-import { GatewayError } from "@/lib/business-central/errors";
+import { ConfigError, getConfig } from "@/lib/business-central/config";
+import { isGatewayError } from "@/lib/business-central/errors";
 import { logger } from "@/lib/telemetry/logger";
 import type { Principal } from "@/types/principal";
 import { getSessionStore, getUserDirectory } from "./services";
@@ -33,14 +33,24 @@ export function jsonError(status: number, code: string, message: string, correla
 
 /** Maps any thrown value to a safe response. Internals never reach the client. */
 export function errorResponse(e: unknown, correlationId: string): NextResponse {
-  if (e instanceof GatewayError) {
+  if (isGatewayError(e)) {
     const headers: Record<string, string> = {};
     if (e.opts.retryAfterMs) headers["Retry-After"] = String(Math.max(1, Math.ceil(e.opts.retryAfterMs / 1000)));
     return jsonError(e.httpStatus, e.code, e.message, correlationId, headers);
   }
   if (e instanceof ZodError) return jsonError(400, "VALIDATION", "Invalid request", correlationId);
-  logger.error("route.unhandled", { correlationId, errorCode: e instanceof Error ? e.name : "unknown" });
-  return jsonError(500, "INTERNAL", "Unexpected error", correlationId);
+  if (e instanceof ConfigError) {
+    logger.error("route.config_invalid", { correlationId, errorCode: "CONFIG", detail: e.issues.join(" | ").slice(0, 600) });
+    return jsonError(503, "CONFIG", "The WMS server configuration is incomplete. An administrator must check the server log for this reference.", correlationId);
+  }
+  // Server log only (never returned to the browser): the real cause, so "Unexpected error" is traceable.
+  logger.error("route.unhandled", {
+    correlationId,
+    errorCode: e instanceof Error ? e.name : "unknown",
+    detail: e instanceof Error ? e.message.slice(0, 500) : String(e).slice(0, 500),
+    stack: e instanceof Error ? e.stack?.split("\n").slice(0, 6).join(" | ") : undefined,
+  });
+  return jsonError(500, "INTERNAL", "Unexpected error. Quote the reference to your administrator.", correlationId);
 }
 
 function originAllowed(req: NextRequest): boolean {

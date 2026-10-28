@@ -27,6 +27,17 @@ export interface GatewayErrorOptions {
   outcomeUnknown?: boolean;
 }
 
+/**
+ * `instanceof GatewayError` is unreliable under Next.js (the same module can be bundled into several
+ * server chunks, giving several distinct classes), which turned every gateway error into a 500
+ * "Unexpected error". Identify the error by its shape instead.
+ */
+export function isGatewayError(e: unknown): e is GatewayError {
+  if (e instanceof GatewayError) return true;
+  const x = e as { name?: unknown; code?: unknown; opts?: unknown } | null;
+  return !!x && typeof x === "object" && x.name === "GatewayError" && typeof x.code === "string" && typeof x.opts === "object" && x.opts !== null;
+}
+
 export class GatewayError extends Error {
   constructor(
     public readonly code: GatewayErrorCode,

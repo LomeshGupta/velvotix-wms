@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import type { StructuredQuery } from "@/lib/validation/odata";
 import { getGateway } from "@/lib/business-central/client";
+import { isGatewayError } from "@/lib/business-central/errors";
 import { jsonError, protectedRoute } from "@/lib/security/route";
 
 export const runtime = "nodejs";
@@ -36,6 +37,14 @@ export const GET = protectedRoute({}, async ({ req, principal, correlationId }) 
   const readPrincipal = principal.permissions.includes("bins:view")
     ? principal
     : { ...principal, permissions: [...principal.permissions, "bins:view"] };
-  const result = await getGateway().read("bins.list", query, { principal: readPrincipal, correlationId });
-  return NextResponse.json({ bins: result.rows });
+  try {
+    const result = await getGateway().read("bins.list", query, { principal: readPrincipal, correlationId });
+    return NextResponse.json({ bins: result.rows });
+  } catch (e) {
+    // Suggestions only. If the BC "VWMS Bins API" page is not published yet, scanning/typing still works.
+    if (isGatewayError(e) && (e.code === "BC_NOT_FOUND" || e.code === "ENDPOINT_NOT_ALLOWED")) {
+      return NextResponse.json({ bins: [], unavailable: true });
+    }
+    throw e;
+  }
 });

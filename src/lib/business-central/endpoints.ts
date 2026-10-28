@@ -162,7 +162,7 @@ export const OPERATIONS = {
     scope: warehouseScope("locationCode"),
     query: {
       maxTop: 200, defaultTop: 100,
-      defaultSelect: ["id", "documentNo", "lineNo", "locationCode", "itemNo", "description", "quantity", "qtyToShip", "qtyOutstanding", "qtyPicked", "unitOfMeasureCode", "binCode", "sourceNo", "sourceLineNo", "status"],
+      defaultSelect: ["id", "documentNo", "lineNo", "locationCode", "itemNo", "description", "quantity", "qtyToShip", "qtyOutstanding", "qtyPicked", "qtyShipped", "unitOfMeasureCode", "binCode", "sourceNo", "sourceLineNo", "status"],
       fields: {
         id: f({ type: "guid", filterable: true }),
         documentNo: f({ type: "string", filterable: true, ops: ["eq"] }),
@@ -174,6 +174,7 @@ export const OPERATIONS = {
         qtyToShip: f({ type: "number" }),
         qtyOutstanding: f({ type: "number" }),
         qtyPicked: f({ type: "number" }),
+        qtyShipped: f({ type: "number" }),
         unitOfMeasureCode: f({ type: "string" }),
         binCode: f({ type: "string", filterable: true, ops: ["eq"] }),
         sourceNo: f({ type: "string" }),

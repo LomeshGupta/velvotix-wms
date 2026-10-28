@@ -27,7 +27,10 @@ const LoginResponse = z.object({
 });
 
 const sys = { principal: SYSTEM_PRINCIPAL };
+import { expandPermissions } from "./permission-catalog";
+
 const PROFILE_TTL_MS = 30_000;
+
 // Versioned keys invalidate profiles/catalogs cached before login loaded real assignments.
 const ROLE_CATALOG_CACHE_KEY = "wms:role-catalog:v3";
 
@@ -168,7 +171,8 @@ export class BcUserDirectory implements UserDirectory {
         (code) => catalog.roleNames[code] ?? code,
       ),
       // BC upper-cases Code fields; WMS permission strings are normalized to lower-case.
-      permissions: [...permissions],
+      // Legacy names count as the canonical permission; administrators receive every permission.
+      permissions: expandPermissions(permissions),
     };
   }
 

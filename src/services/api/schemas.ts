@@ -49,6 +49,7 @@ export interface WarehouseShipmentLineHit {
   qtyToShip: number;
   qtyOutstanding: number;
   qtyPicked: number;
+  qtyShipped?: number;
   unitOfMeasureCode: string;
   binCode?: string;
   sourceNo?: string;
