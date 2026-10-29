@@ -24,7 +24,17 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { pickableQuantity, shippableQuantity } from "@/features/transactions/quantities";
+import { createPickQuantity, packableQuantity, pickableQuantity, shippableQuantity, type ShipmentLineQty } from "@/features/transactions/quantities";
+
+/** What each outbound step can still handle on a warehouse shipment line, from Business Central's own quantities. */
+const remainingFor = (operationType: string, line: ShipmentLineQty): number =>
+  operationType === "Create Pick" ? createPickQuantity(line)
+  : operationType === "Pick" ? pickableQuantity(line)
+  : operationType === "Pack" ? packableQuantity(line)
+  : shippableQuantity(line);
+
+const remainingLabel = (operationType: string): string =>
+  operationType === "Create Pick" ? "To create pick" : operationType === "Pick" ? "To pick" : operationType === "Pack" ? "To pack" : "Ready to ship";
 import { ErrorNotice } from "@/components/feedback/Notices";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { useOnline } from "@/components/layout/NetworkStatus";
@@ -114,18 +124,14 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
   useEffect(() => {
     const key = `${locationCode}:${sourceDocumentNo}`;
     if (!config.selectWarehouseShipment || !sourceDocumentNo || shipmentLinesQuery.isLoading || shipmentLinesQuery.isError || !shipmentLinesQuery.data || loadedShipmentKey === key) return;
-    // Pick: what is still to be picked (outstanding minus already registered picks).
-    // Ship: what BC has set to ship. Qty. to Ship can be 0 before a pick is registered, so it
-    // must not drive the pick screen.
-    const remaining = (line: { qtyToShip: number; qtyOutstanding: number; qtyPicked: number; qtyShipped?: number }) =>
-      config.operationType === "Pick"
-        ? pickableQuantity(line)
-        : shippableQuantity(line);
+    // Every outbound step uses Business Central's own quantities (see features/transactions/quantities.ts).
+    // Create Pick works on whole lines only, so those lines start selected at their full open quantity.
+    const remaining = (line: ShipmentLineQty) => remainingFor(config.operationType, line);
     const planned = shipmentLinesQuery.data.lines
       .filter((line) => remaining(line) > 0)
       .map((line) => ({
         ...emptyLine(), itemNo: line.itemNo, description: line.description,
-        unitOfMeasureCode: line.unitOfMeasureCode, quantity: 0,
+        unitOfMeasureCode: line.unitOfMeasureCode, quantity: config.operationType === "Create Pick" ? remaining(line) : 0,
         expectedQuantity: remaining(line), sourceLineNo: Number(line.lineNo),
         fromBinCode: line.binCode ?? "",
       }));
@@ -283,7 +289,7 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
               {!shipmentLinesQuery.isLoading && !shipmentLinesQuery.isError && (shipmentLinesQuery.data?.lines.length ?? 0) === 0 && <Typography variant="body2" color="text.secondary">No lines found on this warehouse shipment.</Typography>}
               {(shipmentLinesQuery.data?.lines ?? []).map((line) => <Box key={line.id} sx={{ py: 1, borderBottom: 1, borderColor: "divider", display: "grid", gridTemplateColumns: { xs: "1fr auto", sm: "minmax(0,1fr) auto auto auto" }, gap: 1, alignItems: "center" }}>
                 <Box sx={{ minWidth: 0 }}><Typography fontWeight={600}>{line.itemNo} · {line.description}</Typography><Typography variant="caption" color="text.secondary">Line {line.lineNo}{line.binCode ? ` · Bin ${line.binCode}` : ""}{line.sourceNo ? ` · Source ${line.sourceNo}` : ""}</Typography></Box>
-                <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>{config.operationType === "Pick" ? `To pick: ${pickableQuantity(line)}` : `Ready to ship: ${shippableQuantity(line)}`}</Typography>
+                <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>{`${remainingLabel(config.operationType)}: ${remainingFor(config.operationType, line)}`}</Typography>
                 <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>Picked: {line.qtyPicked}</Typography>
                 <Typography variant="caption" color="text.secondary">{line.status?.trim() || "Open"}</Typography>
               </Box>)}

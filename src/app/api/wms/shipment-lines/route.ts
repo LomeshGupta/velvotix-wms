@@ -11,7 +11,7 @@ const Params = z.object({
   locationCode: z.string().trim().min(1).max(10).regex(/^[A-Za-z0-9_-]+$/),
   number: z.string().trim().min(1).max(20).regex(/^[A-Za-z0-9_-]+$/),
 });
-const LINE_SELECT = ["id", "documentNo", "lineNo", "locationCode", "itemNo", "description", "quantity", "qtyToShip", "qtyOutstanding", "qtyPicked", "qtyShipped", "unitOfMeasureCode", "binCode", "sourceNo", "sourceLineNo", "status"] as const;
+const LINE_SELECT = ["id", "documentNo", "lineNo", "locationCode", "itemNo", "description", "quantity", "qtyToShip", "qtyOutstanding", "qtyPicked", "qtyShipped", "pickQty", "qtyPacked", "unitOfMeasureCode", "binCode", "sourceNo", "sourceLineNo", "status"] as const;
 
 export const GET = protectedRoute({}, async ({ req, principal, correlationId }) => {
   const parsed = Params.safeParse(Object.fromEntries(req.nextUrl.searchParams));

@@ -58,6 +58,7 @@ const WORKSPACES = [
   { href: "/inbound/receiving", title: "Receive goods", detail: "Goods coming in", permission: "receiving:submit", icon: <MoveToInbox />, tint: "#E6F2FF", ink: "#155A9C" },
   { href: "/inbound/putaway", title: "Put stock away", detail: "Move goods to a shelf or bin", permission: "putaway:submit", icon: <MoveDown />, tint: "#EDE9FE", ink: "#5B35A5" },
   { href: "/inventory/movements", title: "Move stock", detail: "Move goods to another bin", permission: "movements:submit", icon: <SwapHoriz />, tint: "#E7F6F4", ink: "#08786D" },
+  { href: "/outbound/create-pick", title: "Create a pick", detail: "Prepare the pick for a shipment", permission: "picking:submit", icon: <QrCodeScanner />, tint: "#FFF7E0", ink: "#7A5A00" },
   { href: "/outbound/picking", title: "Pick an order", detail: "Collect items for an order", permission: "picking:submit", icon: <QrCodeScanner />, tint: "#FFF0D1", ink: "#8A5000" },
   { href: "/outbound/packing", title: "Pack an order", detail: "Check items before sending", permission: "packing:submit", icon: <AddBoxOutlined />, tint: "#E3F4FF", ink: "#075985" },
   { href: "/outbound/shipping", title: "Send an order", detail: "Finish dispatch", permission: "shipping:submit", icon: <LocalShipping />, tint: "#E3F7E9", ink: "#166534" },

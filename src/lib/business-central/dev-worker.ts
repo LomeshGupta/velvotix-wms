@@ -21,7 +21,7 @@ export function startDevWorker(gateway: BcGateway, mock: MockBc): void {
   // This is deliberately a simulation only: the live AL handler set is independently validated.
   const simulated = new Set([
     "Diagnostic", "Receipt", "Put-away", "Movement", "Pick", "Pack", "Ship",
-    "Cycle Count", "Adjustment", "Return", "Quality Inspection",
+    "Cycle Count", "Adjustment", "Return", "Quality Inspection", "Create Pick",
   ].map(encodeODataEnum));
   mock.processOutcome = (row) => (simulated.has(String(row.operationType)) ? "complete" : "permanent");
   const worker = new Worker(new BcStagingRepository(gateway, "DEV-WORKER", 60), {

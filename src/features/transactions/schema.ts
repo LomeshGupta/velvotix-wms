@@ -4,11 +4,12 @@ const Code = (max: number) => z.string().trim().min(1).max(max).regex(/^[A-Za-z0
 const OptionalCode = (max: number) => Code(max).optional();
 
 export const WMS_OPERATION_TYPES = [
-  "Put-away", "Movement", "Pick", "Pack", "Ship", "Cycle Count", "Adjustment", "Return", "Quality Inspection",
+  "Put-away", "Movement", "Pick", "Pack", "Ship", "Cycle Count", "Adjustment", "Return", "Quality Inspection", "Create Pick",
 ] as const;
 export type WmsOperationType = (typeof WMS_OPERATION_TYPES)[number];
 
 export const OPERATION_PERMISSION: Record<WmsOperationType, string> = {
+  "Create Pick": "picking:submit",
   "Put-away": "putaway:submit",
   Movement: "movements:submit",
   Pick: "picking:submit",
@@ -47,7 +48,7 @@ export const WmsOperationInput = z.object({
   if (input.operationType === "Put-away" && input.lines.some((l) => !l.toBinCode)) {
     ctx.addIssue({ code: "custom", path: ["lines"], message: "Put-away requires a destination bin on every line" });
   }
-  if (input.operationType === "Pick" || input.operationType === "Ship") {
+  if (input.operationType === "Pick" || input.operationType === "Ship" || input.operationType === "Pack" || input.operationType === "Create Pick") {
     if (!input.sourceDocumentNo) ctx.addIssue({ code: "custom", path: ["sourceDocumentNo"], message: "A warehouse shipment number is required" });
     if (input.lines.some((l) => !l.sourceLineNo)) ctx.addIssue({ code: "custom", path: ["lines"], message: "Every line must reference its warehouse shipment line" });
     const seen = new Set<number>();

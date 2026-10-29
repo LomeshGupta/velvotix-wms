@@ -1,30 +1,73 @@
 import "server-only";
 import { hostname } from "node:os";
-import { getGateway, getScheduler } from "@/lib/business-central/client";
-import { ConfigError, getConfig } from "@/lib/business-central/config";
-import { logger } from "@/lib/telemetry/logger";
-import { BcStagingRepository } from "./bc-staging-repository";
-import { Worker } from "./worker";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { loadEnvConfig } from "@next/env";
 
 /**
- * Long-running worker process (run separately from the Next.js web tier; serverless functions
- * cannot host it). Start with `npm run worker`. Business Central staging is the queue, so any
- * number of workers may run; AL's lease-based claim guarantees a row is processed by one of them.
- *
- * Throughput note: worker calls use the scheduler's "background" lane. Raise WMS_BC_MAX_BACKGROUND
- * (within your measured BC budget) to process transactions in parallel.
+ * Standalone worker entry point.
+ * Unlike `next start`, running this file through `tsx` does not automatically
+ * load the Next.js environment files. Load them before importing application
+ * modules, because those modules may initialize configuration at import time.
  */
-const intEnv = (name: string, def: number, min: number, max: number): number => {
-  const v = Number(process.env[name]);
-  return Number.isInteger(v) && v >= min && v <= max ? v : def;
+const projectRoot = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../..",
+);
+
+// Respect NODE_ENV if the process manager supplied it. If it is unset, use
+// production-style env-file selection, matching `next start`, without trying
+// to assign to process.env.NODE_ENV (which can be read-only in this project).
+const isDevelopment = process.env.NODE_ENV === "development";
+const { loadedEnvFiles } = loadEnvConfig(projectRoot, isDevelopment);
+
+console.info("[WMS Worker] Environment initialized", {
+  projectRoot,
+  nodeEnv: process.env.NODE_ENV ?? "(unset)",
+  mode: process.env.WMS_BC_MODE ?? "(unset)",
+  loadedEnvFiles: loadedEnvFiles.map((file) => file.path),
+});
+
+const intEnv = (
+  name: string,
+  def: number,
+  min: number,
+  max: number,
+): number => {
+  const value = Number(process.env[name]);
+  return Number.isInteger(value) && value >= min && value <= max ? value : def;
 };
 
 async function main(): Promise<void> {
+  // IMPORTANT: keep these runtime imports below loadEnvConfig().
+  const [
+    { getGateway, getScheduler },
+    { ConfigError, getConfig },
+    { logger },
+    { BcStagingRepository },
+    { Worker },
+  ] = await Promise.all([
+    import("@/lib/business-central/client"),
+    import("@/lib/business-central/config"),
+    import("@/lib/telemetry/logger"),
+    import("./bc-staging-repository"),
+    import("./worker"),
+  ]);
+
   const cfg = getConfig();
+
   if (cfg.mode === "mock") {
-    logger.warn("worker.mock_mode", { note: "Mock BC is in-process only; this worker will see no transactions." });
+    throw new ConfigError([
+      "The standalone WMS worker resolved WMS_BC_MODE=mock.",
+      `Project root: ${projectRoot}`,
+      `Environment files loaded: ${loadedEnvFiles.map((file) => file.path).join(", ") || "none"}`,
+      "Ensure WMS_BC_MODE=live is set in the effective environment and is not overridden by the process manager.",
+    ]);
   }
-  const workerId = (process.env.WMS_WORKER_ID ?? `${hostname()}-${process.pid}`).slice(0, 50);
+
+  const workerId = (
+    process.env.WMS_WORKER_ID ?? `${hostname()}-${process.pid}`
+  ).slice(0, 50);
   const leaseSeconds = intEnv("WMS_WORKER_LEASE_SECONDS", 120, 15, 3600);
   const repo = new BcStagingRepository(getGateway(), workerId, leaseSeconds);
   const worker = new Worker(repo, {
@@ -32,31 +75,43 @@ async function main(): Promise<void> {
     concurrency: intEnv("WMS_WORKER_CONCURRENCY", 3, 1, 20),
     pollIntervalMs: intEnv("WMS_WORKER_POLL_MS", 2000, 100, 60_000),
     leaseMs: leaseSeconds * 1000,
-    onEvent: (event, data) => logger.info(`worker.${event}`, { workerId, ...data }),
+    onEvent: (event, data) =>
+      logger.info(`worker.${event}`, { workerId, ...data }),
   });
 
   const beat = setInterval(() => {
-    logger.info("worker.heartbeat", { workerId, lastLoopAt: new Date(worker.heartbeatAt).toISOString(), scheduler: getScheduler().snapshot() });
+    logger.info("worker.heartbeat", {
+      workerId,
+      lastLoopAt: new Date(worker.heartbeatAt).toISOString(),
+      scheduler: getScheduler().snapshot(),
+    });
   }, 30_000);
 
-  const shutdown = (signal: string) => {
+  const shutdown = (signal: string): void => {
     logger.info("worker.shutdown", { workerId, signal });
     worker.stop();
   };
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
 
-  logger.info("worker.start", { workerId, leaseSeconds });
-  await worker.run(); // resolves after in-flight work drains
-  clearInterval(beat);
+  logger.info("worker.start", { workerId, leaseSeconds, mode: cfg.mode });
+  try {
+    await worker.run(); // resolves after in-flight work drains
+  } finally {
+    clearInterval(beat);
+  }
   logger.info("worker.stopped", { workerId });
 }
 
 main().then(
   () => process.exit(0),
-  (e: unknown) => {
-    if (e instanceof ConfigError) console.error(e.message);
-    else logger.error("worker.fatal", { errorCode: e instanceof Error ? e.name : "unknown" });
+  (error: unknown) => {
+    // Load the logger/config modules in main, so startup failures before those
+    // imports are handled with console output by the promise rejection handler.
+    console.error(
+      "[WMS Worker] Fatal startup/runtime error:",
+      error instanceof Error ? error.message : error,
+    );
     process.exit(1);
   },
 );

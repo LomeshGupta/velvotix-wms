@@ -96,6 +96,12 @@ const NAV = [
     perm: "inventory:adjust",
   },
   {
+    href: "/outbound/create-pick",
+    label: "Create pick",
+    icon: <ShoppingCartCheckout />,
+    perm: "picking:submit",
+  },
+  {
     href: "/outbound/picking",
     label: "Picking",
     icon: <ShoppingCartCheckout />,

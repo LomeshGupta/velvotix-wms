@@ -11,6 +11,7 @@ const FALLBACK_WORKSPACES = [
   ["cyclecounts:submit", "/inventory/cycle-count"],
   ["inventory:adjust", "/inventory/adjustments"],
   ["picking:submit", "/outbound/picking"],
+  ["picking:submit", "/outbound/create-pick"],
   ["packing:submit", "/outbound/packing"],
   ["shipping:submit", "/outbound/shipping"],
   ["returns:submit", "/returns"],

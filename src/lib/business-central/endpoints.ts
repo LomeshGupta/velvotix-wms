@@ -76,7 +76,7 @@ export const TRANSACTION_STATUSES = [
 export type TransactionStatus = (typeof TRANSACTION_STATUSES)[number];
 
 export const OPERATION_TYPES = [
-  "Diagnostic", "Receipt", "Put-away", "Movement", "Pick", "Pack", "Ship", "Cycle Count", "Adjustment", "Return", "Quality Inspection",
+  "Diagnostic", "Receipt", "Put-away", "Movement", "Pick", "Pack", "Ship", "Cycle Count", "Adjustment", "Return", "Quality Inspection", "Create Pick",
 ] as const;
 export type OperationType = (typeof OPERATION_TYPES)[number];
 
@@ -162,7 +162,7 @@ export const OPERATIONS = {
     scope: warehouseScope("locationCode"),
     query: {
       maxTop: 200, defaultTop: 100,
-      defaultSelect: ["id", "documentNo", "lineNo", "locationCode", "itemNo", "description", "quantity", "qtyToShip", "qtyOutstanding", "qtyPicked", "qtyShipped", "unitOfMeasureCode", "binCode", "sourceNo", "sourceLineNo", "status"],
+      defaultSelect: ["id", "documentNo", "lineNo", "locationCode", "itemNo", "description", "quantity", "qtyToShip", "qtyOutstanding", "qtyPicked", "qtyShipped", "pickQty", "qtyPacked", "unitOfMeasureCode", "binCode", "sourceNo", "sourceLineNo", "status"],
       fields: {
         id: f({ type: "guid", filterable: true }),
         documentNo: f({ type: "string", filterable: true, ops: ["eq"] }),
@@ -175,6 +175,8 @@ export const OPERATIONS = {
         qtyOutstanding: f({ type: "number" }),
         qtyPicked: f({ type: "number" }),
         qtyShipped: f({ type: "number" }),
+        pickQty: f({ type: "number" }),
+        qtyPacked: f({ type: "number" }),
         unitOfMeasureCode: f({ type: "string" }),
         binCode: f({ type: "string", filterable: true, ops: ["eq"] }),
         sourceNo: f({ type: "string" }),

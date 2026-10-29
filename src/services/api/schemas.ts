@@ -50,6 +50,8 @@ export interface WarehouseShipmentLineHit {
   qtyOutstanding: number;
   qtyPicked: number;
   qtyShipped?: number;
+  pickQty?: number;
+  qtyPacked?: number;
   unitOfMeasureCode: string;
   binCode?: string;
   sourceNo?: string;
@@ -81,7 +83,7 @@ export interface ReceiptPayload {
   lines: { itemNo: string; quantity: number; unitOfMeasureCode?: string; lotNo?: string }[];
 }
 
-export type WmsOperationType = "Put-away" | "Movement" | "Pick" | "Pack" | "Ship" | "Cycle Count" | "Adjustment" | "Return" | "Quality Inspection";
+export type WmsOperationType = "Put-away" | "Movement" | "Pick" | "Pack" | "Ship" | "Cycle Count" | "Adjustment" | "Return" | "Quality Inspection" | "Create Pick";
 
 export interface WmsOperationPayload {
   clientKey: string;
