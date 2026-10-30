@@ -53,6 +53,11 @@ export class BcStagingRepository implements StagingRepository {
     return ClaimedSchema.parse(raw);
   }
 
+  async queueState(): Promise<Record<string, unknown>> {
+    const raw = await this.gateway.invoke<unknown>("worker.queueState", {}, { principal: SYSTEM_PRINCIPAL });
+    return z.record(z.string(), z.unknown()).parse(raw);
+  }
+
   async process(id: string, workerId: string): Promise<ProcessOutcome> {
     const raw = await this.gateway.invoke<unknown>("worker.process", { transactionId: id, workerId }, { principal: SYSTEM_PRINCIPAL });
     return mapProcessResult(raw);

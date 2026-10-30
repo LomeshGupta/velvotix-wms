@@ -4,7 +4,6 @@ import {
   type WorkbenchConfig,
 } from "@/components/workbench/OperationWorkbenchView";
 import { requireWmsPagePermission } from "@/lib/security/page-access";
-import { fa } from "zod/v4/locales";
 
 export const metadata: Metadata = { title: "Order picking · Velvotix WMS" };
 const config: WorkbenchConfig = {

@@ -10,14 +10,24 @@ export type ShipmentLineQty = {
 
 const n = (v: unknown) => Number(v ?? 0) || 0;
 
-/** Create Pick: whole open quantity, i.e. outstanding minus picked minus what is already on an open pick. */
-export function createPickQuantity(l: ShipmentLineQty): number {
-  return Math.max(n(l.qtyOutstanding) - n(l.qtyPicked) - n(l.pickQty), 0);
+/**
+ * Business Central's Qty. Picked and Qty. Shipped are cumulative: shipping does NOT reduce Qty. Picked.
+ * So what is left to pick is always Quantity - Qty. Picked (never Qty. Outstanding - Qty. Picked, which
+ * hits 0 as soon as part of the order has shipped). Falls back to outstanding + shipped when the
+ * server does not send the line quantity.
+ */
+export function totalQuantity(l: ShipmentLineQty): number {
+  return l.quantity !== undefined ? n(l.quantity) : n(l.qtyOutstanding) + n(l.qtyShipped);
 }
 
-/** Pick: what is on open picks (never more than outstanding minus picked). Older servers without pickQty fall back to that bound. */
+/** Create Pick: whole open quantity = Quantity - Qty. Picked - what is already on an open pick (BC's own formula). */
+export function createPickQuantity(l: ShipmentLineQty): number {
+  return Math.max(totalQuantity(l) - n(l.qtyPicked) - n(l.pickQty), 0);
+}
+
+/** Pick: what is on open picks, never more than Quantity - Qty. Picked. Older servers without pickQty use that bound. */
 export function pickableQuantity(l: ShipmentLineQty): number {
-  const bound = Math.max(n(l.qtyOutstanding) - n(l.qtyPicked), 0);
+  const bound = Math.max(totalQuantity(l) - n(l.qtyPicked), 0);
   return l.pickQty === undefined ? bound : Math.min(bound, Math.max(n(l.pickQty), 0));
 }
 

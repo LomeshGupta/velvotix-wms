@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+import type { DocKind, LocationSetup } from "@/features/documents/kinds";
 import { ApiError } from "@/services/api/bcRequest";
 import {
   getDashboard,
@@ -9,6 +10,7 @@ import {
   getWarehouseShipments,
   getWarehouseShipmentLines,
   getBins,
+  getWorkRows,
   lookupItem,
   searchItems,
   submitReceipt,
@@ -119,6 +121,43 @@ export const useBins = (locationCode: string, enabled: boolean) =>
     queryKey: ["bins", locationCode],
     enabled: enabled && Boolean(locationCode),
     queryFn: ({ signal }) => getBins(locationCode, "", signal),
+    staleTime: 5 * 60_000,
+    retry: retryPolicy,
+  });
+
+/** Work documents for the workbench, by kind. Shipments keep their dedicated routes; inbound kinds use /api/wms/work-docs. */
+export const useWorkDocs = (kind: DocKind, locationCode: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ["work-docs", kind, locationCode],
+    enabled: Boolean(locationCode && enabled),
+    queryFn: async ({ signal }): Promise<Record<string, unknown>[]> => {
+      if (kind === "shipment") return (await getWarehouseShipments(locationCode, signal)).shipments as unknown as Record<string, unknown>[];
+      const api = kind === "receipt" ? "receipts" : kind === "purchase" ? "purchase-orders" : "putaways";
+      return (await getWorkRows(api, locationCode, undefined, signal)).rows;
+    },
+    staleTime: 15_000,
+    retry: retryPolicy,
+  });
+
+export const useWorkDocLines = (kind: DocKind, locationCode: string, number: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ["work-doc-lines", kind, locationCode, number],
+    enabled: Boolean(locationCode && number && enabled),
+    queryFn: async ({ signal }): Promise<Record<string, unknown>[]> => {
+      if (kind === "shipment") return (await getWarehouseShipmentLines(locationCode, number, signal)).lines as unknown as Record<string, unknown>[];
+      const api = kind === "receipt" ? "receipt-lines" : kind === "purchase" ? "purchase-lines" : "putaway-lines";
+      return (await getWorkRows(api, locationCode, number, signal)).rows;
+    },
+    staleTime: 15_000,
+    retry: retryPolicy,
+  });
+
+/** Warehouse configuration of a location (receive/put-away/pick/shipment/bins), to choose the right standard process. */
+export const useLocationSetup = (locationCode: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ["location-setup", locationCode],
+    enabled: Boolean(locationCode && enabled),
+    queryFn: async ({ signal }): Promise<LocationSetup | undefined> => (await getWorkRows("location-setup", locationCode, undefined, signal)).rows[0] as unknown as LocationSetup | undefined,
     staleTime: 5 * 60_000,
     retry: retryPolicy,
   });

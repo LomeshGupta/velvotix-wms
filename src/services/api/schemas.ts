@@ -83,7 +83,7 @@ export interface ReceiptPayload {
   lines: { itemNo: string; quantity: number; unitOfMeasureCode?: string; lotNo?: string }[];
 }
 
-export type WmsOperationType = "Put-away" | "Movement" | "Pick" | "Pack" | "Ship" | "Cycle Count" | "Adjustment" | "Return" | "Quality Inspection" | "Create Pick";
+export type WmsOperationType = "Receipt" | "Put-away" | "Movement" | "Pick" | "Pack" | "Ship" | "Cycle Count" | "Adjustment" | "Return" | "Quality Inspection" | "Create Pick";
 
 export interface WmsOperationPayload {
   clientKey: string;

@@ -186,6 +186,127 @@ export const OPERATIONS = {
     },
   },
 
+  "receipts.list": {
+    api: "custom", entity: "warehouseReceipts", method: "GET", lane: "interactive",
+    permission: perm("transactions", "view"), cache: "none", tags: ["warehouseReceipts"],
+    scope: warehouseScope("locationCode"),
+    query: {
+      maxTop: 100, defaultTop: 50,
+      defaultSelect: ["id", "number", "locationCode", "assignedUserId", "postingDate", "vendorShipmentNo"],
+      fields: {
+        id: f({ type: "guid", filterable: true }),
+        number: f({ type: "string", filterable: true, sortable: true, ops: ["eq"] }),
+        locationCode: f({ type: "string", filterable: true, ops: ["eq", "in"] }),
+        assignedUserId: f({ type: "string" }),
+        postingDate: f({ type: "date", sortable: true }),
+        vendorShipmentNo: f({ type: "string" }),
+      },
+    },
+  },
+  "receiptLines.list": {
+    api: "custom", entity: "warehouseReceiptLines", method: "GET", lane: "interactive",
+    permission: perm("transactions", "view"), cache: "none", tags: ["warehouseReceipts"],
+    scope: warehouseScope("locationCode"),
+    query: {
+      maxTop: 200, defaultTop: 100,
+      defaultSelect: ["id", "documentNo", "lineNo", "locationCode", "itemNo", "description", "unitOfMeasureCode", "binCode", "zoneCode", "quantity", "qtyToReceive", "qtyOutstanding", "qtyReceived", "sourceNo", "sourceLineNo"],
+      fields: {
+        id: f({ type: "guid", filterable: true }),
+        documentNo: f({ type: "string", filterable: true, ops: ["eq"] }),
+        lineNo: f({ type: "number", sortable: true }),
+        locationCode: f({ type: "string", filterable: true, ops: ["eq", "in"] }),
+        itemNo: f({ type: "string" }), description: f({ type: "string" }), unitOfMeasureCode: f({ type: "string" }),
+        binCode: f({ type: "string" }), zoneCode: f({ type: "string" }),
+        quantity: f({ type: "number" }), qtyToReceive: f({ type: "number" }), qtyOutstanding: f({ type: "number" }), qtyReceived: f({ type: "number" }),
+        sourceNo: f({ type: "string" }), sourceLineNo: f({ type: "number" }),
+      },
+    },
+  },
+  "putaways.list": {
+    api: "custom", entity: "putaways", method: "GET", lane: "interactive",
+    permission: perm("transactions", "view"), cache: "none", tags: ["putaways"],
+    scope: warehouseScope("locationCode"),
+    query: {
+      maxTop: 100, defaultTop: 50,
+      defaultSelect: ["id", "number", "type", "locationCode", "assignedUserId"],
+      fields: {
+        id: f({ type: "guid", filterable: true }),
+        number: f({ type: "string", filterable: true, sortable: true, ops: ["eq"] }),
+        type: f({ type: "string" }),
+        locationCode: f({ type: "string", filterable: true, ops: ["eq", "in"] }),
+        assignedUserId: f({ type: "string" }),
+      },
+    },
+  },
+  "putawayLines.list": {
+    api: "custom", entity: "putawayLines", method: "GET", lane: "interactive",
+    permission: perm("transactions", "view"), cache: "none", tags: ["putaways"],
+    scope: warehouseScope("locationCode"),
+    query: {
+      maxTop: 200, defaultTop: 100,
+      defaultSelect: ["id", "activityNo", "lineNo", "locationCode", "itemNo", "description", "unitOfMeasureCode", "binCode", "zoneCode", "quantity", "qtyOutstanding", "qtyToHandle", "sourceNo", "whseDocumentNo"],
+      fields: {
+        id: f({ type: "guid", filterable: true }),
+        activityNo: f({ type: "string", filterable: true, ops: ["eq"] }),
+        lineNo: f({ type: "number", sortable: true }),
+        locationCode: f({ type: "string", filterable: true, ops: ["eq", "in"] }),
+        itemNo: f({ type: "string" }), description: f({ type: "string" }), unitOfMeasureCode: f({ type: "string" }),
+        binCode: f({ type: "string" }), zoneCode: f({ type: "string" }),
+        quantity: f({ type: "number" }), qtyOutstanding: f({ type: "number" }), qtyToHandle: f({ type: "number" }),
+        sourceNo: f({ type: "string" }), whseDocumentNo: f({ type: "string" }),
+      },
+    },
+  },
+  "purchaseOrders.list": {
+    api: "custom", entity: "purchaseOrders", method: "GET", lane: "interactive",
+    permission: perm("transactions", "view"), cache: "none", tags: ["purchaseOrders"],
+    scope: warehouseScope("locationCode"),
+    query: {
+      maxTop: 100, defaultTop: 50,
+      defaultSelect: ["id", "number", "locationCode", "vendorNo", "vendorName", "status", "expectedReceiptDate"],
+      fields: {
+        id: f({ type: "guid", filterable: true }),
+        number: f({ type: "string", filterable: true, sortable: true, ops: ["eq"] }),
+        locationCode: f({ type: "string", filterable: true, ops: ["eq", "in"] }),
+        vendorNo: f({ type: "string" }), vendorName: f({ type: "string" }),
+        status: f({ type: "enum", values: ["Open", "Released", "Pending Approval", "Pending Prepayment"], filterable: true, ops: ["eq", "in"] }),
+        expectedReceiptDate: f({ type: "date", sortable: true }),
+      },
+    },
+  },
+  "purchaseLines.list": {
+    api: "custom", entity: "purchaseOrderLines", method: "GET", lane: "interactive",
+    permission: perm("transactions", "view"), cache: "none", tags: ["purchaseOrders"],
+    scope: warehouseScope("locationCode"),
+    query: {
+      maxTop: 200, defaultTop: 100,
+      defaultSelect: ["id", "documentNo", "lineNo", "locationCode", "itemNo", "description", "unitOfMeasureCode", "quantity", "qtyToReceive", "quantityReceived", "outstandingQuantity"],
+      fields: {
+        id: f({ type: "guid", filterable: true }),
+        documentNo: f({ type: "string", filterable: true, ops: ["eq"] }),
+        lineNo: f({ type: "number", sortable: true }),
+        locationCode: f({ type: "string", filterable: true, ops: ["eq", "in"] }),
+        itemNo: f({ type: "string" }), description: f({ type: "string" }), unitOfMeasureCode: f({ type: "string" }),
+        quantity: f({ type: "number" }), qtyToReceive: f({ type: "number" }), quantityReceived: f({ type: "number" }), outstandingQuantity: f({ type: "number" }),
+      },
+    },
+  },
+  "locationSetup.list": {
+    api: "custom", entity: "locationSetups", method: "GET", lane: "interactive",
+    permission: perm("transactions", "view"), cache: "reference", tags: ["locations"],
+    scope: warehouseScope("code"),
+    query: {
+      maxTop: 50, defaultTop: 10,
+      defaultSelect: ["id", "code", "name", "requireReceive", "requirePutaway", "requirePick", "requireShipment", "binMandatory", "directedPutawayAndPick"],
+      fields: {
+        id: f({ type: "guid", filterable: true }),
+        code: f({ type: "string", filterable: true, sortable: true, ops: ["eq", "in"] }),
+        name: f({ type: "string" }),
+        requireReceive: f({ type: "boolean" }), requirePutaway: f({ type: "boolean" }), requirePick: f({ type: "boolean" }),
+        requireShipment: f({ type: "boolean" }), binMandatory: f({ type: "boolean" }), directedPutawayAndPick: f({ type: "boolean" }),
+      },
+    },
+  },
   "bins.list": {
     api: "custom", entity: "bins", method: "GET", lane: "interactive",
     permission: perm("bins", "view"), cache: "reference", tags: ["bins"],
@@ -337,6 +458,10 @@ export const OPERATIONS = {
   "worker.claimBatch": {
     method: "ACTION", service: "VWMSWorker", action: "ClaimBatch", lane: "background",
     permission: SYSTEM_PERMISSION, params: { workerId: "string", leaseSeconds: "number", maxCount: "number" }, returns: "json-text",
+  },
+  "worker.queueState": {
+    method: "ACTION", service: "VWMSWorker", action: "QueueState", lane: "background",
+    permission: SYSTEM_PERMISSION, params: {}, returns: "json-text",
   },
   "worker.process": {
     method: "ACTION", service: "VWMSWorker", action: "ProcessTransaction", lane: "background",

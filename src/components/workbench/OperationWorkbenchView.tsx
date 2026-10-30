@@ -24,24 +24,15 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { createPickQuantity, packableQuantity, pickableQuantity, shippableQuantity, type ShipmentLineQty } from "@/features/transactions/quantities";
+import { documentNoun, isInventoryPutawayLocation, remainingLabel, resolveDocKind, sourceDocumentTypeFor, toWorkDoc, toWorkLine, type DocumentKindConfig } from "@/features/documents/kinds";
 
-/** What each outbound step can still handle on a warehouse shipment line, from Business Central's own quantities. */
-const remainingFor = (operationType: string, line: ShipmentLineQty): number =>
-  operationType === "Create Pick" ? createPickQuantity(line)
-  : operationType === "Pick" ? pickableQuantity(line)
-  : operationType === "Pack" ? packableQuantity(line)
-  : shippableQuantity(line);
-
-const remainingLabel = (operationType: string): string =>
-  operationType === "Create Pick" ? "To create pick" : operationType === "Pick" ? "To pick" : operationType === "Pack" ? "To pack" : "Ready to ship";
 import { ErrorNotice } from "@/components/feedback/Notices";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { useOnline } from "@/components/layout/NetworkStatus";
 import { ScanInput } from "@/components/scanning/ScanInput";
 import { TransactionTimeline } from "@/components/transactions/TransactionTimeline";
 import { friendlyMessage } from "@/lib/api-client";
-import { isTerminal, useBins, useItemLookup, useSubmitOperation, useTransaction, useWarehouseShipmentLines, useWarehouseShipments, type WmsOperationPayload, type WmsOperationType } from "@/hooks/useWms";
+import { isTerminal, useBins, useItemLookup, useLocationSetup, useSubmitOperation, useTransaction, useWorkDocLines, useWorkDocs, type WmsOperationPayload, type WmsOperationType } from "@/hooks/useWms";
 import { useSessionStore } from "@/store/uiStore";
 import { MONO } from "@/theme/theme";
 
@@ -54,6 +45,8 @@ export interface WorkbenchConfig {
   sourceDocumentType: string;
   sourceDocumentRequired?: boolean;
   selectWarehouseShipment?: boolean;
+  /** Which documents to choose from: outbound shipments (default when selectWarehouseShipment), inbound (receipt or purchase order by location setup), or put-aways. */
+  documentKind?: DocumentKindConfig;
   showBins?: boolean;
   requireFromBin?: boolean;
   requireToBin?: boolean;
@@ -117,28 +110,36 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
   const locked = Boolean(transactionId);
   const locationCode = selectedLocation ?? "";
   const binsQuery = useBins(locationCode, Boolean(config.showBins));
-  const shipmentQuery = useWarehouseShipments(config.selectWarehouseShipment ? locationCode : "");
-  const shipmentLinesQuery = useWarehouseShipmentLines(locationCode, sourceDocumentNo, Boolean(config.selectWarehouseShipment));
+  const selectDocument = Boolean(config.selectWarehouseShipment || config.documentKind);
+  const setupQuery = useLocationSetup(locationCode, config.documentKind === "inbound");
+  const docKind = resolveDocKind(config.documentKind ?? (selectDocument ? "shipment" : undefined), setupQuery.data);
+  const inventoryPutaway = config.documentKind === "inbound" && isInventoryPutawayLocation(setupQuery.data);
+  const docsRaw = useWorkDocs(docKind, locationCode, selectDocument && !inventoryPutaway && !(config.documentKind === "inbound" && setupQuery.isLoading));
+  const linesRaw = useWorkDocLines(docKind, locationCode, sourceDocumentNo, selectDocument && !inventoryPutaway);
+  // Same shape the screen has always used, now fed by whichever Business Central document kind applies.
+  const shipmentQuery = { isLoading: docsRaw.isLoading, isError: docsRaw.isError, data: docsRaw.data ? { shipments: docsRaw.data.map((r) => toWorkDoc(docKind, r)) } : undefined };
+  const shipmentLinesQuery = { isLoading: linesRaw.isLoading, isError: linesRaw.isError, data: linesRaw.data ? { lines: linesRaw.data.map((r) => toWorkLine(docKind, config.operationType, r)) } : undefined };
   const destinationChoices = useMemo(() => warehouseCodes.filter((code) => code.toUpperCase() !== locationCode.toUpperCase()), [warehouseCodes, locationCode]);
 
   useEffect(() => {
     const key = `${locationCode}:${sourceDocumentNo}`;
-    if (!config.selectWarehouseShipment || !sourceDocumentNo || shipmentLinesQuery.isLoading || shipmentLinesQuery.isError || !shipmentLinesQuery.data || loadedShipmentKey === key) return;
-    // Every outbound step uses Business Central's own quantities (see features/transactions/quantities.ts).
+    if (!selectDocument || !sourceDocumentNo || shipmentLinesQuery.isLoading || shipmentLinesQuery.isError || !shipmentLinesQuery.data || loadedShipmentKey === key) return;
+    // Every step uses Business Central's own quantities (features/transactions/quantities.ts and features/documents/kinds.ts).
     // Create Pick works on whole lines only, so those lines start selected at their full open quantity.
-    const remaining = (line: ShipmentLineQty) => remainingFor(config.operationType, line);
+    const remaining = (line: { remaining: number }) => line.remaining;
     const planned = shipmentLinesQuery.data.lines
       .filter((line) => remaining(line) > 0)
       .map((line) => ({
         ...emptyLine(), itemNo: line.itemNo, description: line.description,
         unitOfMeasureCode: line.unitOfMeasureCode, quantity: config.operationType === "Create Pick" ? remaining(line) : 0,
         expectedQuantity: remaining(line), sourceLineNo: Number(line.lineNo),
-        fromBinCode: line.binCode ?? "",
+        fromBinCode: docKind === "shipment" ? (line.binCode ?? "") : "",
+        toBinCode: docKind === "putaway" ? (line.binCode ?? "") : "",
       }));
     setLines(planned);
     setActiveLineIndex(planned.length ? 0 : -1);
     setLoadedShipmentKey(key);
-  }, [config.selectWarehouseShipment, config.operationType, locationCode, sourceDocumentNo, shipmentLinesQuery.data, shipmentLinesQuery.isError, shipmentLinesQuery.isLoading, loadedShipmentKey]);
+  }, [selectDocument, docKind, config.operationType, locationCode, sourceDocumentNo, shipmentLinesQuery.data, shipmentLinesQuery.isError, shipmentLinesQuery.isLoading, loadedShipmentKey]);
 
   const updateLine = (index: number, patch: Partial<WorkLine>) => setLines((old) => old.map((line, i) => i === index ? { ...line, ...patch } : line));
 
@@ -159,7 +160,7 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
     try {
       const { item } = await lookup.mutateAsync(code);
       if (item.blocked) { setScanError(`Item ${item.number} is blocked and cannot be used for this operation.`); return; }
-      if (config.selectWarehouseShipment) {
+      if (selectDocument) {
         const found = lines.findIndex((line) => line.itemNo.toUpperCase() === item.number.toUpperCase() && line.expectedQuantity !== undefined && line.quantity < line.expectedQuantity && !line.serialNo);
         if (found < 0) {
           setScanError(`Item ${item.number} is not on the selected shipment, or its required quantity has already been scanned.`);
@@ -187,7 +188,7 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
   const totalQuantity = lines.reduce((sum, line) => sum + (Number.isFinite(line.quantity) ? line.quantity : 0), 0);
   // Lines taken from a warehouse shipment may be left at 0 (skipped) or partly handled, but never
   // exceed what BC says is outstanding. Free-entry workbenches still need a positive quantity.
-  const fromDocument = Boolean(config.selectWarehouseShipment);
+  const fromDocument = Boolean(selectDocument);
   const activeLines = fromDocument ? lines.filter((line) => line.quantity > 0) : lines;
   const invalidLines = (fromDocument && activeLines.length === 0) || lines.some((line) => !line.itemNo || !Number.isFinite(line.quantity) || line.quantity < 0 || (!fromDocument && line.quantity <= 0) || (line.expectedQuantity !== undefined && line.quantity > line.expectedQuantity) || (config.requireFromBin && line.quantity > 0 && !line.fromBinCode.trim()) || (config.requireToBin && line.quantity > 0 && !line.toBinCode.trim()));
   const missingDocument = Boolean(config.sourceDocumentRequired && !sourceDocumentNo.trim());
@@ -201,7 +202,7 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
       operationType: config.operationType,
       locationCode,
       destinationLocationCode: destinationLocationCode || undefined,
-      sourceDocumentType: config.sourceDocumentType,
+      sourceDocumentType: sourceDocumentTypeFor(docKind, config.sourceDocumentType),
       sourceDocumentNo: sourceDocumentNo.trim() || undefined,
       reasonCode: reasonCode.trim() || undefined,
       lines: activeLines.map((line) => ({
@@ -238,7 +239,7 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
 
       <Paper sx={{ p: 1.25, mb: 2, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 1, maxWidth: 1350 }}>
         {[
-          { number: "1", title: config.selectWarehouseShipment ? "Choose order" : "Enter details", icon: <DescriptionOutlined /> },
+          { number: "1", title: selectDocument ? `Choose ${documentNoun(docKind)}` : "Enter details", icon: <DescriptionOutlined /> },
           { number: "2", title: "Scan items", icon: <QrCodeScanner /> },
           { number: "3", title: "Check and finish", icon: <TaskAlt /> },
         ].map((step) => (
@@ -255,17 +256,18 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
       <Stack spacing={2.5} sx={{ maxWidth: 1350 }}>
         {!locked && (
           <Paper variant="outlined" sx={{ p: { xs: 1.5, sm: 2 } }}>
-            <Typography variant="h2" component="h2" sx={{ mb: 2 }}>{config.selectWarehouseShipment ? "1. Choose the order" : "1. Enter details"}</Typography>
+            {inventoryPutaway && <Alert severity="info" sx={{ mb: 2 }}>Location {locationCode} uses inventory put-away (no warehouse receipt). Create the inventory put-away in Business Central, then register it on the Put-away screen.</Alert>}
+            <Typography variant="h2" component="h2" sx={{ mb: 2 }}>{selectDocument ? `1. Choose the ${documentNoun(docKind)}` : "1. Enter details"}</Typography>
             <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: config.allowDestinationWarehouse ? "repeat(3,minmax(0,1fr))" : "repeat(2,minmax(0,1fr))" } }}>
-              {config.selectWarehouseShipment ? <FormControl fullWidth required={config.sourceDocumentRequired}>
+              {selectDocument ? <FormControl fullWidth required={config.sourceDocumentRequired}>
                 <InputLabel id="source-warehouse-shipment-label">{config.sourceDocumentLabel}</InputLabel>
                 <Select labelId="source-warehouse-shipment-label" label={config.sourceDocumentLabel} value={sourceDocumentNo} onChange={(e) => { setSourceDocumentNo(String(e.target.value)); setLoadedShipmentKey(""); setLines([]); setActiveLineIndex(-1); }}>
-                  <MenuItem value="">Choose an order</MenuItem>
-                  {(shipmentQuery.data?.shipments ?? []).map((shipment) => <MenuItem key={shipment.id} value={shipment.number}>{shipment.number} · {shipment.documentStatus?.trim() || "Not picked"}{shipment.externalDocumentNo ? ` · ${shipment.externalDocumentNo}` : ""}</MenuItem>)}
+                  <MenuItem value="">{`Choose ${documentNoun(docKind)}`}</MenuItem>
+                  {(shipmentQuery.data?.shipments ?? []).map((shipment) => <MenuItem key={shipment.id} value={shipment.number}>{shipment.number} · {shipment.documentStatus?.trim() || "Open"}{shipment.externalDocumentNo ? ` · ${shipment.externalDocumentNo}` : ""}</MenuItem>)}
                 </Select>
-                {shipmentQuery.isLoading && <Typography variant="caption" color="text.secondary">Loading released Business Central shipments…</Typography>}
-                {shipmentQuery.isError && <Typography variant="caption" color="error">Unable to load shipment queue. Check BC API publication and warehouse access.</Typography>}
-                {!shipmentQuery.isLoading && !shipmentQuery.isError && (shipmentQuery.data?.shipments.length ?? 0) === 0 && <Typography variant="caption" color="text.secondary">No released warehouse shipments were found for {locationCode}.</Typography>}
+                {shipmentQuery.isLoading && <Typography variant="caption" color="text.secondary">Loading from Business Central…</Typography>}
+                {shipmentQuery.isError && <Typography variant="caption" color="error">Unable to load the list from Business Central. Check the API pages are published and your warehouse access.</Typography>}
+                {!shipmentQuery.isLoading && !shipmentQuery.isError && (shipmentQuery.data?.shipments.length ?? 0) === 0 && <Typography variant="caption" color="text.secondary">No open documents were found for {locationCode}.</Typography>}
               </FormControl> : <TextField label={config.sourceDocumentLabel} value={sourceDocumentNo} onChange={(e) => setSourceDocumentNo(e.target.value.toUpperCase())} required={config.sourceDocumentRequired} slotProps={{ htmlInput: { maxLength: 20, style: { fontFamily: MONO } } }} />}
               {config.allowDestinationWarehouse && <FormControl fullWidth>
                 <InputLabel id="destination-location-label">Destination warehouse</InputLabel>
@@ -282,14 +284,14 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
                 </Select>
               </FormControl> : <TextField label={config.reasonLabel ?? "Reason code"} value={reasonCode} onChange={(e) => setReasonCode(e.target.value.toUpperCase())} required={config.requireReason} slotProps={{ htmlInput: { maxLength: 20, style: { fontFamily: MONO } } }} />)}
             </Box>
-            {config.selectWarehouseShipment && sourceDocumentNo && <Box sx={{ mt: 2, borderTop: 1, borderColor: "divider", pt: 2 }}>
+            {selectDocument && sourceDocumentNo && <Box sx={{ mt: 2, borderTop: 1, borderColor: "divider", pt: 2 }}>
               <Typography variant="h3" component="h3" sx={{ mb: 1 }}>Items on this order</Typography>
-              {shipmentLinesQuery.isLoading && <Typography variant="body2" color="text.secondary">Loading base warehouse shipment lines…</Typography>}
+              {shipmentLinesQuery.isLoading && <Typography variant="body2" color="text.secondary">Loading lines from Business Central…</Typography>}
               {shipmentLinesQuery.isError && <Alert severity="error">Unable to read lines for {sourceDocumentNo}. Verify the WMS warehouse shipment line API page is published and the integration permission set is assigned.</Alert>}
-              {!shipmentLinesQuery.isLoading && !shipmentLinesQuery.isError && (shipmentLinesQuery.data?.lines.length ?? 0) === 0 && <Typography variant="body2" color="text.secondary">No lines found on this warehouse shipment.</Typography>}
+              {!shipmentLinesQuery.isLoading && !shipmentLinesQuery.isError && (shipmentLinesQuery.data?.lines.length ?? 0) === 0 && <Typography variant="body2" color="text.secondary">No open lines on this document.</Typography>}
               {(shipmentLinesQuery.data?.lines ?? []).map((line) => <Box key={line.id} sx={{ py: 1, borderBottom: 1, borderColor: "divider", display: "grid", gridTemplateColumns: { xs: "1fr auto", sm: "minmax(0,1fr) auto auto auto" }, gap: 1, alignItems: "center" }}>
                 <Box sx={{ minWidth: 0 }}><Typography fontWeight={600}>{line.itemNo} · {line.description}</Typography><Typography variant="caption" color="text.secondary">Line {line.lineNo}{line.binCode ? ` · Bin ${line.binCode}` : ""}{line.sourceNo ? ` · Source ${line.sourceNo}` : ""}</Typography></Box>
-                <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>{`${remainingLabel(config.operationType)}: ${remainingFor(config.operationType, line)}`}</Typography>
+                <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>{`${remainingLabel(config.operationType)}: ${line.remaining}`}</Typography>
                 <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>Picked: {line.qtyPicked}</Typography>
                 <Typography variant="caption" color="text.secondary">{line.status?.trim() || "Open"}</Typography>
               </Box>)}
@@ -318,7 +320,7 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
               </Select>
             </FormControl>
             {config.showBins && <datalist id="wms-bin-options">{(binsQuery.data?.bins ?? []).map((bin) => <option key={bin.id} value={bin.code}>{bin.description ?? ""}</option>)}</datalist>}
-            <ScanInput onScan={onScan} busy={lookup.isPending || submit.isPending} disabled={!locationCode || locked || Boolean(config.selectWarehouseShipment && (!sourceDocumentNo || shipmentLinesQuery.isLoading || shipmentLinesQuery.isError || !shipmentLinesQuery.data))} label={scanTarget === "item" ? "Scan item barcode" : `Scan ${scanTarget === "fromBin" ? "from bin" : scanTarget === "toBin" ? "to bin" : scanTarget === "lot" ? "lot number" : "serial number"}` } helperText={scanError ?? "Tap Scan with camera, use a barcode scanner, or type the code."} error={Boolean(scanError)} />
+            <ScanInput onScan={onScan} busy={lookup.isPending || submit.isPending} disabled={!locationCode || locked || Boolean(selectDocument && (!sourceDocumentNo || shipmentLinesQuery.isLoading || shipmentLinesQuery.isError || !shipmentLinesQuery.data))} label={scanTarget === "item" ? "Scan item barcode" : `Scan ${scanTarget === "fromBin" ? "from bin" : scanTarget === "toBin" ? "to bin" : scanTarget === "lot" ? "lot number" : "serial number"}` } helperText={scanError ?? "Tap Scan with camera, use a barcode scanner, or type the code."} error={Boolean(scanError)} />
             <Box role="status" aria-live="polite" sx={{ position: "absolute", left: -9999 }}>{announce}</Box>
           </Stack>
         </Paper>}
@@ -360,7 +362,7 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
 
         {!locked && <Box sx={{ position: "sticky", bottom: { xs: "calc(88px + env(safe-area-inset-bottom, 0px))", lg: 16 }, zIndex: 5 }}>
           <Paper sx={{ p: 1.5, display: "flex", alignItems: "center", gap: 1.5, boxShadow: 3 }}>
-            <Box sx={{ flexGrow: 1, minWidth: 0 }}><Typography variant="body2" fontWeight={800}>{lines.length ? `${lines.length} lines · ${totalQuantity} units` : "No items yet"}</Typography><Typography variant="caption" color="text.secondary">{lines.length && invalidLines ? (config.selectWarehouseShipment ? "Scan the required shipment quantity for each line" : "Complete required bins and valid quantities") : config.requireReason && !reasonCode.trim() ? "Choose a reason before submitting" : "Saved to BC staging after submission"}</Typography></Box>
+            <Box sx={{ flexGrow: 1, minWidth: 0 }}><Typography variant="body2" fontWeight={800}>{lines.length ? `${lines.length} lines · ${totalQuantity} units` : "No items yet"}</Typography><Typography variant="caption" color="text.secondary">{lines.length && invalidLines ? (selectDocument ? "Scan the required shipment quantity for each line" : "Complete required bins and valid quantities") : config.requireReason && !reasonCode.trim() ? "Choose a reason before submitting" : "Saved to BC staging after submission"}</Typography></Box>
             {lines.length > 0 && <Button onClick={startNew}>Clear</Button>}
             <Button variant="contained" size="large" disabled={!canSubmit || submit.isPending} onClick={() => setConfirmOpen(true)} sx={{ whiteSpace: "nowrap", flexShrink: 0 }}>{submit.isPending ? "Submitting…" : submit.error ? "Retry same task" : config.submitLabel}</Button>
           </Paper>

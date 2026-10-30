@@ -28,15 +28,51 @@ const BINS: Row[] = [
   { id: "44444444-4444-4444-8444-444444444403", locationCode: "EAST", code: "B-01", description: "East bin 1", zoneCode: "PICK" },
 ];
 
+const today = new Date().toISOString().slice(0, 10);
+const WAREHOUSE_RECEIPTS: Row[] = [
+  { id: "55555555-5555-4555-8555-555555555501", number: "WR-1001", locationCode: "MAIN", assignedUserId: "RECEIVER", postingDate: today, vendorShipmentNo: "VS-77" },
+  { id: "55555555-5555-4555-8555-555555555502", number: "WR-1002", locationCode: "MAIN", assignedUserId: "RECEIVER", postingDate: today, vendorShipmentNo: "VS-78" },
+];
+// WR-1002 is partly received (6 of 10): 4 still open.
+const WAREHOUSE_RECEIPT_LINES: Row[] = [
+  { id: "55555555-5555-4555-8555-555555555511", documentNo: "WR-1001", lineNo: 10000, locationCode: "MAIN", itemNo: "1000", description: "Bicycle", unitOfMeasureCode: "PCS", binCode: "RECEIVE", zoneCode: "RECEIVE", quantity: 10, qtyToReceive: 10, qtyOutstanding: 10, qtyReceived: 0, sourceNo: "PO-1001", sourceLineNo: 10000 },
+  { id: "55555555-5555-4555-8555-555555555512", documentNo: "WR-1001", lineNo: 20000, locationCode: "MAIN", itemNo: "1100", description: "Front wheel", unitOfMeasureCode: "PCS", binCode: "RECEIVE", zoneCode: "RECEIVE", quantity: 4, qtyToReceive: 4, qtyOutstanding: 4, qtyReceived: 0, sourceNo: "PO-1001", sourceLineNo: 20000 },
+  { id: "55555555-5555-4555-8555-555555555513", documentNo: "WR-1002", lineNo: 10000, locationCode: "MAIN", itemNo: "1000", description: "Bicycle", unitOfMeasureCode: "PCS", binCode: "RECEIVE", zoneCode: "RECEIVE", quantity: 10, qtyToReceive: 4, qtyOutstanding: 4, qtyReceived: 6, sourceNo: "PO-1002", sourceLineNo: 10000 },
+];
+const PUTAWAYS: Row[] = [
+  { id: "66666666-6666-4666-8666-666666666601", number: "PA-1001", type: "Put-away", locationCode: "MAIN", assignedUserId: "" },
+];
+const PUTAWAY_LINES: Row[] = [
+  { id: "66666666-6666-4666-8666-666666666611", activityNo: "PA-1001", lineNo: 10000, locationCode: "MAIN", itemNo: "1000", description: "Bicycle", unitOfMeasureCode: "PCS", binCode: "A-01", zoneCode: "PICK", quantity: 6, qtyOutstanding: 6, qtyToHandle: 6, sourceNo: "PO-1002", whseDocumentNo: "PWR-1002" },
+  { id: "66666666-6666-4666-8666-666666666612", activityNo: "PA-1001", lineNo: 20000, locationCode: "MAIN", itemNo: "1100", description: "Front wheel", unitOfMeasureCode: "PCS", binCode: "A-02", zoneCode: "PICK", quantity: 4, qtyOutstanding: 2, qtyToHandle: 2, sourceNo: "PO-1001", whseDocumentNo: "PWR-1001" },
+];
+const PURCHASE_ORDERS: Row[] = [
+  { id: "77777777-7777-4777-8777-777777777701", number: "PO-2001", locationCode: "EAST", vendorNo: "10000", vendorName: "Fabrikam", status: "Released", expectedReceiptDate: today },
+  { id: "77777777-7777-4777-8777-777777777702", number: "PO-2002", locationCode: "EAST", vendorNo: "20000", vendorName: "Contoso", status: "Open", expectedReceiptDate: today },
+  { id: "77777777-7777-4777-8777-777777777703", number: "PO-2003", locationCode: "EAST", vendorNo: "30000", vendorName: "Closed Co", status: "Pending Approval", expectedReceiptDate: today },
+];
+// PO-2001 line 10000 is partly received (3 of 8): 5 outstanding.
+const PURCHASE_LINES: Row[] = [
+  { id: "77777777-7777-4777-8777-777777777711", documentNo: "PO-2001", lineNo: 10000, locationCode: "EAST", itemNo: "1000", description: "Bicycle", unitOfMeasureCode: "PCS", quantity: 8, qtyToReceive: 8, quantityReceived: 3, outstandingQuantity: 5 },
+  { id: "77777777-7777-4777-8777-777777777712", documentNo: "PO-2001", lineNo: 20000, locationCode: "EAST", itemNo: "1100", description: "Front wheel", unitOfMeasureCode: "PCS", quantity: 2, qtyToReceive: 2, quantityReceived: 0, outstandingQuantity: 2 },
+];
+const LOCATION_SETUPS: Row[] = [
+  { id: "88888888-8888-4888-8888-888888888801", code: "MAIN", name: "Main warehouse", requireReceive: true, requirePutaway: true, requirePick: true, requireShipment: true, binMandatory: true, directedPutawayAndPick: false },
+  { id: "88888888-8888-4888-8888-888888888802", code: "EAST", name: "East (basic)", requireReceive: false, requirePutaway: false, requirePick: false, requireShipment: false, binMandatory: false, directedPutawayAndPick: false },
+];
+
 const WAREHOUSE_SHIPMENTS: Row[] = [
   { id: "33333333-3333-4333-8333-333333333301", number: "WS-1001", locationCode: "MAIN", shipmentDate: new Date().toISOString().slice(0, 10), assignedUserId: "PICKER", documentStatus: " ", status: "Released", externalDocumentNo: "SO-10001" },
   { id: "33333333-3333-4333-8333-333333333302", number: "WS-1002", locationCode: "MAIN", shipmentDate: new Date().toISOString().slice(0, 10), assignedUserId: "PICKER", documentStatus: "Partially Picked", status: "Released", externalDocumentNo: "SO-10002" },
+  { id: "33333333-3333-4333-8333-333333333304", number: "WS-1003", locationCode: "MAIN", shipmentDate: new Date().toISOString().slice(0, 10), assignedUserId: "PICKER", documentStatus: "Partially Picked", status: "Released", externalDocumentNo: "SO-10003" },
   { id: "33333333-3333-4333-8333-333333333303", number: "WS-2001", locationCode: "EAST", shipmentDate: new Date().toISOString().slice(0, 10), assignedUserId: "SHIPPER", documentStatus: "Completely Picked", status: "Released", externalDocumentNo: "SO-20001" },
 ];
 const WAREHOUSE_SHIPMENT_LINES: Row[] = [
+  // Partly picked (6 of 10) and partly shipped (4): 4 still to pick, 2 picked and ready to ship.
+  { id: "44444444-4444-4444-8444-444444444405", documentNo: "WS-1003", lineNo: 10000, locationCode: "MAIN", itemNo: "1000", description: "Bicycle", quantity: 10, qtyToShip: 2, qtyOutstanding: 6, qtyPicked: 6, qtyShipped: 4, pickQty: 4, qtyPacked: 0, unitOfMeasureCode: "PCS", binCode: "PICK-01", sourceNo: "SO-10003", sourceLineNo: 10000, status: "Partially Picked" },
   { id: "44444444-4444-4444-8444-444444444401", documentNo: "WS-1001", lineNo: 10000, locationCode: "MAIN", itemNo: "1000", description: "Bicycle", quantity: 4, qtyToShip: 4, qtyOutstanding: 4, qtyPicked: 0, qtyShipped: 0, pickQty: 0, qtyPacked: 0, unitOfMeasureCode: "PCS", binCode: "PICK-01", sourceNo: "SO-10001", sourceLineNo: 10000, status: " " },
   { id: "44444444-4444-4444-8444-444444444402", documentNo: "WS-1001", lineNo: 20000, locationCode: "MAIN", itemNo: "1100", description: "Front Wheel", quantity: 8, qtyToShip: 8, qtyOutstanding: 8, qtyPicked: 0, qtyShipped: 0, pickQty: 0, qtyPacked: 0, unitOfMeasureCode: "PCS", binCode: "PICK-02", sourceNo: "SO-10001", sourceLineNo: 20000, status: " " },
-  { id: "44444444-4444-4444-8444-444444444403", documentNo: "WS-1002", lineNo: 10000, locationCode: "MAIN", itemNo: "1100", description: "Front Wheel", quantity: 3, qtyToShip: 3, qtyOutstanding: 3, qtyPicked: 1, qtyShipped: 0, pickQty: 0, qtyPacked: 0, unitOfMeasureCode: "PCS", binCode: "PICK-02", sourceNo: "SO-10002", sourceLineNo: 10000, status: "Partially Picked" },
+  { id: "44444444-4444-4444-8444-444444444403", documentNo: "WS-1002", lineNo: 10000, locationCode: "MAIN", itemNo: "1100", description: "Front Wheel", quantity: 3, qtyToShip: 3, qtyOutstanding: 3, qtyPicked: 1, qtyShipped: 0, pickQty: 2, qtyPacked: 0, unitOfMeasureCode: "PCS", binCode: "PICK-02", sourceNo: "SO-10002", sourceLineNo: 10000, status: "Partially Picked" },
   { id: "44444444-4444-4444-8444-444444444404", documentNo: "WS-2001", lineNo: 10000, locationCode: "EAST", itemNo: "1000", description: "Bicycle", quantity: 2, qtyToShip: 2, qtyOutstanding: 2, qtyPicked: 2, qtyShipped: 0, pickQty: 0, qtyPacked: 0, unitOfMeasureCode: "PCS", binCode: "PICK-01", sourceNo: "SO-20001", sourceLineNo: 10000, status: "Completely Picked" },
 ];
 
@@ -170,6 +206,13 @@ export class MockBc {
         case "warehouseShipments": return WAREHOUSE_SHIPMENTS;
         case "warehouseShipmentLines": return WAREHOUSE_SHIPMENT_LINES;
         case "bins": return BINS;
+        case "warehouseReceipts": return WAREHOUSE_RECEIPTS;
+        case "warehouseReceiptLines": return WAREHOUSE_RECEIPT_LINES;
+        case "putaways": return PUTAWAYS;
+        case "putawayLines": return PUTAWAY_LINES;
+        case "purchaseOrders": return PURCHASE_ORDERS;
+        case "purchaseOrderLines": return PURCHASE_LINES;
+        case "locationSetups": return LOCATION_SETUPS;
         case "transactions": return [...this.transactions.values()];
         case "authUsers": return [...this.authUsers.values()];
         case "userWarehouses": return this.userWarehouses;
@@ -245,6 +288,10 @@ export class MockBc {
     const now = Date.now();
     const text = (v: unknown) => json({ value: JSON.stringify(v) });
     switch (name) {
+      case "QueueState": {
+        const waiting = [...this.transactions.values()].filter((r) => ["Submitted", "Queued"].includes(String(r.status))).length;
+        return text({ wmsEnabled: true, autoProcessingEnabled: true, waiting, claimable: waiting, delayed: 0, processing: 0, reason: waiting ? "Work is claimable." : "No transaction is waiting." });
+      }
       case "ClaimBatch": {
         const max = Math.min(Number(p.maxCount ?? 1) || 1, 20);
         const claimed: Row[] = [];

@@ -34,6 +34,8 @@ export interface StagingRepository {
   process(id: string, workerId: string): Promise<ProcessOutcome>;
   /** Extends the lease of a long-running transaction. */
   heartbeat(id: string, workerId: string, leaseMs: number): Promise<boolean>;
+  /** Optional: why the queue is (not) moving, for diagnostics. */
+  queueState?(): Promise<Record<string, unknown>>;
 }
 
 export interface WorkerOptions {
@@ -74,16 +76,34 @@ export class Worker {
             this.running.add(p);
           }
         } catch (e) {
-          this.opts.onEvent?.("poll_error", { name: e instanceof Error ? e.name : "unknown" });
+          this.opts.onEvent?.("poll_error", { name: e instanceof Error ? e.name : "unknown", detail: e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300) });
           await this.idle(this.opts.pollIntervalMs * 2);
           continue;
         }
       }
       // Jittered idle so a fleet of workers does not poll in lockstep.
-      if (!claimedAny) await this.idle(this.opts.pollIntervalMs);
-      else await Promise.race([...this.running, sleep(50)]);
+      if (!claimedAny) {
+        await this.reportIdle();
+        await this.idle(this.opts.pollIntervalMs);
+      } else {
+        this.idlePolls = 0;
+        await Promise.race([...this.running, sleep(50)]);
+      }
     }
     await Promise.allSettled([...this.running]);
+  }
+
+  private idlePolls = 0;
+  /** Every ~15 idle polls, asks Business Central WHY nothing was claimed and logs it when work is waiting. */
+  private async reportIdle(): Promise<void> {
+    this.idlePolls += 1;
+    if (this.idlePolls % 15 !== 0 || !this.repo.queueState) return;
+    try {
+      const s = await this.repo.queueState();
+      if (Number(s.waiting ?? 0) > 0) this.opts.onEvent?.("queue_waiting", s);
+    } catch {
+      /* diagnostics must never disturb the loop */
+    }
   }
 
   private idle(ms: number): Promise<void> {

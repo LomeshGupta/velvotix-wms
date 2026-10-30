@@ -4,6 +4,7 @@ export * from "./transactionService";
 export * from "./itemService";
 export * from "./shipmentService";
 export * from "./binService";
+export * from "./workDocService";
 export * from "./receivingService";
 export * from "./operationService";
 export * from "./adminService";
