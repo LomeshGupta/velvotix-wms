@@ -7,7 +7,7 @@ const config: WorkbenchConfig = {
   operationType: "Adjustment",
   permission: "inventory:adjust",
   title: "Inventory adjustments",
-  subtitle: "Request a controlled inventory adjustment with reason code and item tracking.",
+  subtitle: "Correct stock with a reason code. Enter a positive quantity to add stock or a negative one to remove it; name the bin at bin-managed warehouses (either bin field works).",
   sourceDocumentLabel: "Adjustment reference",
   sourceDocumentType: "Item Journal",
   sourceDocumentRequired: false,

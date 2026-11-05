@@ -24,6 +24,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { quantityFloor, quantityIsValid, quantityLabel, quantityMode } from "@/features/transactions/quantity-rules";
 import { documentNoun, isInventoryPutawayLocation, remainingLabel, resolveDocKind, sourceDocumentTypeFor, toWorkDoc, toWorkLine, type DocumentKindConfig } from "@/features/documents/kinds";
 
 import { ErrorNotice } from "@/components/feedback/Notices";
@@ -190,7 +191,8 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
   // exceed what BC says is outstanding. Free-entry workbenches still need a positive quantity.
   const fromDocument = Boolean(selectDocument);
   const activeLines = fromDocument ? lines.filter((line) => line.quantity > 0) : lines;
-  const invalidLines = (fromDocument && activeLines.length === 0) || lines.some((line) => !line.itemNo || !Number.isFinite(line.quantity) || line.quantity < 0 || (!fromDocument && line.quantity <= 0) || (line.expectedQuantity !== undefined && line.quantity > line.expectedQuantity) || (config.requireFromBin && line.quantity > 0 && !line.fromBinCode.trim()) || (config.requireToBin && line.quantity > 0 && !line.toBinCode.trim()));
+  const qMode = quantityMode(config.operationType);
+  const invalidLines = (fromDocument && activeLines.length === 0) || lines.some((line) => !line.itemNo || !Number.isFinite(line.quantity) || line.quantity < 0 || (!fromDocument && !quantityIsValid(qMode, line.quantity)) || (line.expectedQuantity !== undefined && line.quantity > line.expectedQuantity) || (config.requireFromBin && line.quantity > 0 && !line.fromBinCode.trim()) || (config.requireToBin && line.quantity > 0 && !line.toBinCode.trim()));
   const missingDocument = Boolean(config.sourceDocumentRequired && !sourceDocumentNo.trim());
   const missingReason = Boolean(config.requireReason && !reasonCode.trim());
   const canSubmit = Boolean(locationCode) && lines.length > 0 && !invalidLines && !missingDocument && !missingReason && !locked && online && !lookup.isPending;
@@ -335,8 +337,8 @@ export function OperationWorkbenchView({ config }: { config: WorkbenchConfig }) 
                   <Typography variant="body2" color="text.secondary">{line.description || "Item description unavailable"} · {line.unitOfMeasureCode || "Unit not set"}</Typography>
                 </Box>
                 <Stack direction="row" alignItems="center" spacing={0.5}>
-                  <IconButton size="small" aria-label={`Decrease ${line.itemNo}`} disabled={locked || line.quantity <= (line.expectedQuantity !== undefined ? 0 : 1)} onClick={() => updateLine(i, { quantity: Math.max(line.expectedQuantity !== undefined ? 0 : 1, line.quantity - 1) })}><Remove /></IconButton>
-                  <TextField value={Number.isFinite(line.quantity) ? line.quantity : ""} onChange={(e) => updateLine(i, { quantity: e.target.value === "" ? NaN : Number(e.target.value) })} disabled={locked} error={!Number.isFinite(line.quantity) || line.quantity <= 0 || (line.expectedQuantity !== undefined && line.quantity !== line.expectedQuantity && line.quantity > line.expectedQuantity)} label={line.expectedQuantity !== undefined ? `Scanned / ${line.expectedQuantity}` : "Qty"} size="small" sx={{ width: 132 }} slotProps={{ htmlInput: { inputMode: "decimal", "aria-label": `Quantity for ${line.itemNo}` } }} />
+                  <IconButton size="small" aria-label={`Decrease ${line.itemNo}`} disabled={locked || (line.quantity <= (line.expectedQuantity !== undefined ? 0 : (quantityFloor(qMode) ?? -Infinity)))} onClick={() => updateLine(i, { quantity: Math.max(line.expectedQuantity !== undefined ? 0 : (quantityFloor(qMode) ?? -Infinity), line.quantity - 1) })}><Remove /></IconButton>
+                  <TextField value={Number.isFinite(line.quantity) ? line.quantity : ""} onChange={(e) => updateLine(i, { quantity: e.target.value === "" ? NaN : Number(e.target.value) })} disabled={locked} error={!Number.isFinite(line.quantity) || (line.expectedQuantity === undefined ? !quantityIsValid(qMode, line.quantity) : line.quantity <= 0) || (line.expectedQuantity !== undefined && line.quantity !== line.expectedQuantity && line.quantity > line.expectedQuantity)} label={line.expectedQuantity !== undefined ? `Scanned / ${line.expectedQuantity}` : quantityLabel(config.operationType)} size="small" sx={{ width: 132 }} slotProps={{ htmlInput: { inputMode: qMode === "signed" ? "text" : "decimal", "aria-label": `Quantity for ${line.itemNo}` } }} />
                   <IconButton size="small" aria-label={`Increase ${line.itemNo}`} disabled={locked || (line.expectedQuantity !== undefined && line.quantity >= line.expectedQuantity)} onClick={() => updateLine(i, { quantity: line.quantity + 1 })}><Add /></IconButton>
                   <IconButton size="small" aria-label={`Remove ${line.itemNo}`} disabled={locked || line.expectedQuantity !== undefined} onClick={() => { setLines((old) => old.filter((_, k) => k !== i)); setActiveLineIndex((active) => active === i ? -1 : active > i ? active - 1 : active); }}><DeleteOutline /></IconButton>
                 </Stack>

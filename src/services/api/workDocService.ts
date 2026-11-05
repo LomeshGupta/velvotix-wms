@@ -1,6 +1,6 @@
 import { bcRequest } from "./bcRequest";
 
-export type WorkDocApiKind = "receipts" | "receipt-lines" | "putaways" | "putaway-lines" | "purchase-orders" | "purchase-lines" | "location-setup";
+export type WorkDocApiKind = "receipts" | "receipt-lines" | "putaways" | "putaway-lines" | "purchase-orders" | "purchase-lines" | "return-orders" | "return-lines" | "location-setup";
 
 export function getWorkRows(kind: WorkDocApiKind, locationCode: string, number?: string, signal?: AbortSignal): Promise<{ rows: Record<string, unknown>[] }> {
   const params = new URLSearchParams({ kind, locationCode });

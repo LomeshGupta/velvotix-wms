@@ -7,7 +7,7 @@ const config: WorkbenchConfig = {
   operationType: "Quality Inspection",
   permission: "quality:submit",
   title: "Quality inspection",
-  subtitle: "Record incoming or returned stock inspection outcomes for a traceable review.",
+  subtitle: "Record the inspection result. PASS releases the stock (nothing moves). HOLD or REJECT moves the quantity from its current bin to the quarantine bin you enter, as a standard item reclassification.",
   sourceDocumentLabel: "Receipt / source document no.",
   sourceDocumentType: "Warehouse Receipt",
   sourceDocumentRequired: false,

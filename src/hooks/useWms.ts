@@ -132,7 +132,7 @@ export const useWorkDocs = (kind: DocKind, locationCode: string, enabled: boolea
     enabled: Boolean(locationCode && enabled),
     queryFn: async ({ signal }): Promise<Record<string, unknown>[]> => {
       if (kind === "shipment") return (await getWarehouseShipments(locationCode, signal)).shipments as unknown as Record<string, unknown>[];
-      const api = kind === "receipt" ? "receipts" : kind === "purchase" ? "purchase-orders" : "putaways";
+      const api = kind === "receipt" ? "receipts" : kind === "purchase" ? "purchase-orders" : kind === "return" ? "return-orders" : "putaways";
       return (await getWorkRows(api, locationCode, undefined, signal)).rows;
     },
     staleTime: 15_000,
@@ -145,7 +145,7 @@ export const useWorkDocLines = (kind: DocKind, locationCode: string, number: str
     enabled: Boolean(locationCode && number && enabled),
     queryFn: async ({ signal }): Promise<Record<string, unknown>[]> => {
       if (kind === "shipment") return (await getWarehouseShipmentLines(locationCode, number, signal)).lines as unknown as Record<string, unknown>[];
-      const api = kind === "receipt" ? "receipt-lines" : kind === "purchase" ? "purchase-lines" : "putaway-lines";
+      const api = kind === "receipt" ? "receipt-lines" : kind === "purchase" ? "purchase-lines" : kind === "return" ? "return-lines" : "putaway-lines";
       return (await getWorkRows(api, locationCode, number, signal)).rows;
     },
     staleTime: 15_000,

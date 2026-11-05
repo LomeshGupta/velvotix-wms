@@ -4,8 +4,8 @@
  */
 import { createPickQuantity, packableQuantity, pickableQuantity, shippableQuantity, type ShipmentLineQty } from "@/features/transactions/quantities";
 
-export type DocKind = "shipment" | "receipt" | "purchase" | "putaway";
-export type DocumentKindConfig = "shipment" | "inbound" | "putaway";
+export type DocKind = "shipment" | "receipt" | "purchase" | "putaway" | "return";
+export type DocumentKindConfig = "shipment" | "inbound" | "putaway" | "return";
 
 export interface LocationSetup {
   code: string;
@@ -21,6 +21,7 @@ export interface LocationSetup {
 /** Inbound follows the location: warehouse receipt when it requires receive, otherwise the purchase order directly. */
 export function resolveDocKind(config: DocumentKindConfig | undefined, setup: LocationSetup | undefined): DocKind {
   if (config === "putaway") return "putaway";
+  if (config === "return") return "return";
   if (config === "inbound") return setup?.requireReceive === false ? "purchase" : "receipt";
   return "shipment";
 }
@@ -31,6 +32,7 @@ export function sourceDocumentTypeFor(kind: DocKind, fallback: string): string {
     case "receipt": return "Warehouse Receipt";
     case "purchase": return "Purchase Order";
     case "putaway": return "Put-away";
+    case "return": return "Sales Return Order";
     default: return fallback;
   }
 }
@@ -58,6 +60,7 @@ export function toWorkDoc(kind: DocKind, r: Row): WorkDoc {
     case "receipt": return { id: s(r.id), number: s(r.number), documentStatus: "Warehouse receipt", externalDocumentNo: s(r.vendorShipmentNo) };
     case "purchase": return { id: s(r.id), number: s(r.number), documentStatus: s(r.status) || "Purchase order", externalDocumentNo: s(r.vendorName) };
     case "putaway": return { id: s(r.id), number: s(r.number), documentStatus: s(r.type) || "Put-away", externalDocumentNo: "" };
+    case "return": return { id: s(r.id), number: s(r.number), documentStatus: s(r.status) || "Return order", externalDocumentNo: s(r.customerName) };
     default: return { id: s(r.id), number: s(r.number), documentStatus: s(r.documentStatus), externalDocumentNo: s(r.externalDocumentNo) };
   }
 }
@@ -66,7 +69,8 @@ export function toWorkLine(kind: DocKind, operationType: string, r: Row): WorkLi
   const base = { id: s(r.id), itemNo: s(r.itemNo), description: s(r.description), unitOfMeasureCode: s(r.unitOfMeasureCode), lineNo: n(r.lineNo), sourceNo: s(r.sourceNo) || undefined, qtyPicked: r.qtyPicked === undefined ? undefined : n(r.qtyPicked), status: s(r.status) || undefined };
   switch (kind) {
     case "receipt": return { ...base, binCode: s(r.binCode) || undefined, remaining: Math.max(n(r.qtyOutstanding), 0) };
-    case "purchase": return { ...base, remaining: Math.max(n(r.outstandingQuantity), 0) };
+    case "purchase":
+    case "return": return { ...base, remaining: Math.max(n(r.outstandingQuantity), 0) };
     case "putaway": return { ...base, binCode: s(r.binCode) || undefined, remaining: Math.max(n(r.qtyOutstanding), 0) };
     default: {
       const l = r as unknown as ShipmentLineQty;
@@ -81,7 +85,7 @@ export function toWorkLine(kind: DocKind, operationType: string, r: Row): WorkLi
 
 export const remainingLabel = (operationType: string): string => ({
   "Create Pick": "To create pick", Pick: "To pick", Pack: "To pack", Ship: "Ready to ship",
-  Receipt: "To receive", "Put-away": "To put away",
+  Receipt: "To receive", Return: "To receive back", "Put-away": "To put away",
 } as Record<string, string>)[operationType] ?? "Open";
 
-export const documentNoun = (kind: DocKind): string => ({ shipment: "order", receipt: "warehouse receipt", purchase: "purchase order", putaway: "put-away" })[kind];
+export const documentNoun = (kind: DocKind): string => ({ shipment: "order", receipt: "warehouse receipt", purchase: "purchase order", putaway: "put-away", return: "sales return order" })[kind];

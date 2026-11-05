@@ -56,6 +56,15 @@ const PURCHASE_LINES: Row[] = [
   { id: "77777777-7777-4777-8777-777777777711", documentNo: "PO-2001", lineNo: 10000, locationCode: "EAST", itemNo: "1000", description: "Bicycle", unitOfMeasureCode: "PCS", quantity: 8, qtyToReceive: 8, quantityReceived: 3, outstandingQuantity: 5 },
   { id: "77777777-7777-4777-8777-777777777712", documentNo: "PO-2001", lineNo: 20000, locationCode: "EAST", itemNo: "1100", description: "Front wheel", unitOfMeasureCode: "PCS", quantity: 2, qtyToReceive: 2, quantityReceived: 0, outstandingQuantity: 2 },
 ];
+const RETURN_ORDERS: Row[] = [
+  { id: "99999999-9999-4999-8999-999999999901", number: "SRO-3001", locationCode: "MAIN", customerNo: "10000", customerName: "Adatum", status: "Released" },
+  { id: "99999999-9999-4999-8999-999999999902", number: "SRO-3002", locationCode: "EAST", customerNo: "20000", customerName: "Trey Research", status: "Open" },
+];
+// SRO-3001 line 10000: 5 ordered, 2 already received back, 3 outstanding.
+const RETURN_LINES: Row[] = [
+  { id: "99999999-9999-4999-8999-999999999911", documentNo: "SRO-3001", lineNo: 10000, locationCode: "MAIN", itemNo: "1000", description: "Bicycle", unitOfMeasureCode: "PCS", quantity: 5, qtyToReceive: 5, qtyReceived: 2, outstandingQuantity: 3 },
+  { id: "99999999-9999-4999-8999-999999999912", documentNo: "SRO-3002", lineNo: 10000, locationCode: "EAST", itemNo: "1100", description: "Front wheel", unitOfMeasureCode: "PCS", quantity: 2, qtyToReceive: 2, qtyReceived: 0, outstandingQuantity: 2 },
+];
 const LOCATION_SETUPS: Row[] = [
   { id: "88888888-8888-4888-8888-888888888801", code: "MAIN", name: "Main warehouse", requireReceive: true, requirePutaway: true, requirePick: true, requireShipment: true, binMandatory: true, directedPutawayAndPick: false },
   { id: "88888888-8888-4888-8888-888888888802", code: "EAST", name: "East (basic)", requireReceive: false, requirePutaway: false, requirePick: false, requireShipment: false, binMandatory: false, directedPutawayAndPick: false },
@@ -213,6 +222,8 @@ export class MockBc {
         case "purchaseOrders": return PURCHASE_ORDERS;
         case "purchaseOrderLines": return PURCHASE_LINES;
         case "locationSetups": return LOCATION_SETUPS;
+        case "returnOrders": return RETURN_ORDERS;
+        case "returnOrderLines": return RETURN_LINES;
         case "transactions": return [...this.transactions.values()];
         case "authUsers": return [...this.authUsers.values()];
         case "userWarehouses": return this.userWarehouses;

@@ -291,6 +291,39 @@ export const OPERATIONS = {
       },
     },
   },
+  "returnOrders.list": {
+    api: "custom", entity: "returnOrders", method: "GET", lane: "interactive",
+    permission: perm("transactions", "view"), cache: "none", tags: ["returnOrders"],
+    scope: warehouseScope("locationCode"),
+    query: {
+      maxTop: 100, defaultTop: 50,
+      defaultSelect: ["id", "number", "locationCode", "customerNo", "customerName", "status"],
+      fields: {
+        id: f({ type: "guid", filterable: true }),
+        number: f({ type: "string", filterable: true, sortable: true, ops: ["eq"] }),
+        locationCode: f({ type: "string", filterable: true, ops: ["eq", "in"] }),
+        customerNo: f({ type: "string" }), customerName: f({ type: "string" }),
+        status: f({ type: "enum", values: ["Open", "Released", "Pending Approval", "Pending Prepayment"], filterable: true, ops: ["eq", "in"] }),
+      },
+    },
+  },
+  "returnLines.list": {
+    api: "custom", entity: "returnOrderLines", method: "GET", lane: "interactive",
+    permission: perm("transactions", "view"), cache: "none", tags: ["returnOrders"],
+    scope: warehouseScope("locationCode"),
+    query: {
+      maxTop: 200, defaultTop: 100,
+      defaultSelect: ["id", "documentNo", "lineNo", "locationCode", "itemNo", "description", "unitOfMeasureCode", "quantity", "qtyToReceive", "qtyReceived", "outstandingQuantity"],
+      fields: {
+        id: f({ type: "guid", filterable: true }),
+        documentNo: f({ type: "string", filterable: true, ops: ["eq"] }),
+        lineNo: f({ type: "number", sortable: true }),
+        locationCode: f({ type: "string", filterable: true, ops: ["eq", "in"] }),
+        itemNo: f({ type: "string" }), description: f({ type: "string" }), unitOfMeasureCode: f({ type: "string" }),
+        quantity: f({ type: "number" }), qtyToReceive: f({ type: "number" }), qtyReceived: f({ type: "number" }), outstandingQuantity: f({ type: "number" }),
+      },
+    },
+  },
   "locationSetup.list": {
     api: "custom", entity: "locationSetups", method: "GET", lane: "interactive",
     permission: perm("transactions", "view"), cache: "reference", tags: ["locations"],

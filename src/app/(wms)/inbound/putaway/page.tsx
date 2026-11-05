@@ -1,8 +1,5 @@
 import type { Metadata } from "next";
-import {
-  OperationWorkbenchView,
-  type WorkbenchConfig,
-} from "@/components/workbench/OperationWorkbenchView";
+import { OperationWorkbenchView, type WorkbenchConfig } from "@/components/workbench/OperationWorkbenchView";
 import { requireWmsPagePermission } from "@/lib/security/page-access";
 
 export const metadata: Metadata = { title: "Put-away · Velvotix WMS" };
@@ -10,8 +7,7 @@ const config: WorkbenchConfig = {
   operationType: "Put-away",
   permission: "putaway:submit",
   title: "Put-away",
-  subtitle:
-    "Register a put-away created by Business Central when a receipt was posted. Confirm or change the destination bin; partial quantities are fine.",
+  subtitle: "Register a put-away created by Business Central when a receipt was posted. Confirm or change the destination bin; partial quantities are fine.",
   sourceDocumentLabel: "Put-away no.",
   sourceDocumentType: "Put-away",
   sourceDocumentRequired: true,
@@ -19,7 +15,7 @@ const config: WorkbenchConfig = {
   documentKind: "putaway",
   showBins: true,
   requireFromBin: false,
-  requireToBin: false,
+  requireToBin: true,
   allowDestinationWarehouse: false,
   requireReason: false,
   reasonLabel: "Reason code",
